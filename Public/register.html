@@ -14,7 +14,6 @@
                 <ul>
                     <li><a href="index.html">Home</a></li>
                     <li><a href="login.html">Login</a></li>
-                    <li><a href="register.html">Register</a></li>
                 </ul>
             </div>
         </nav>
@@ -22,88 +21,106 @@
 
     <main>
         <div class="auth-container">
-            <div class="auth-form">
+            <div class="auth-form register-form">
                 <h2>Register</h2>
-                <form id="registerForm">
-                    <div class="form-group">
-                        <label for="role">Role</label>
-                        <select id="role" name="role" required>
-                            <option value="">Select Role</option>
-                            <option value="student">Student</option>
-                            <option value="nurse">Nurse</option>
-                            <option value="admin">Admin</option>
-                        </select>
+                <form id="registerForm" class="register-form-grid">
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="role">Role</label>
+                            <select id="role" name="role" required>
+                                <option value="">Select Role</option>
+                                <option value="student">Student</option>
+                                <option value="nurse">Nurse</option>
+                            </select>
+                        </div>
                     </div>
-                    <div class="form-group">
-                        <label for="firstName">First Name</label>
-                        <input type="text" id="firstName" name="firstName" required>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="firstName">First Name</label>
+                            <input type="text" id="firstName" name="firstName" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="middleName">Middle Name</label>
+                            <input type="text" id="middleName" name="middleName">
+                        </div>
                     </div>
-                    <div class="form-group">
-                        <label for="middleName">Middle Name</label>
-                        <input type="text" id="middleName" name="middleName">
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="lastName">Last Name</label>
+                            <input type="text" id="lastName" name="lastName" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="suffix">Suffix</label>
+                            <input type="text" id="suffix" name="suffix">
+                        </div>
                     </div>
-                    <div class="form-group">
-                        <label for="lastName">Last Name</label>
-                        <input type="text" id="lastName" name="lastName" required>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="idNumber" id="idNumberLabel">ID Number</label>
+                            <input type="text" id="idNumber" name="idNumber" required pattern="[0-9]+">
+                        </div>
                     </div>
-                    <div class="form-group">
-                        <label for="suffix">Suffix</label>
-                        <input type="text" id="suffix" name="suffix">
+                    <div class="form-row student-field">
+                        <div class="form-group">
+                            <label for="schoolYear">School Year</label>
+                            <select id="schoolYear" name="schoolYear" required>
+                                <option value="">Select School Year</option>
+                                <option value="2023-2024">2023-2024</option>
+                                <option value="2024-2025">2024-2025</option>
+                                <option value="2025-2026">2025-2026</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label for="schoolLevel">School Level</label>
+                            <select id="schoolLevel" name="schoolLevel" required>
+                                <option value="">Select School Level</option>
+                                <option value="1ST YEAR">1ST YEAR</option>
+                                <option value="2ND YEAR">2ND YEAR</option>
+                                <option value="3RD YEAR">3RD YEAR</option>
+                                <option value="4TH YEAR">4TH YEAR</option>
+                            </select>
+                        </div>
                     </div>
-                    <div class="form-group">
-                        <label for="idNumber">ID Number</label>
-                        <input type="text" id="idNumber" name="idNumber" required pattern="[0-9]+">
+                    <div class="form-row student-field">
+                        <div class="form-group">
+                            <label for="department">Department</label>
+                            <select id="department" name="department" required>
+                                <option value="">Select Department</option>
+                                <option value="BSHM">BSHM</option>
+                                <option value="BSIT">BSIT</option>
+                                <option value="BSFI">BSFI</option>
+                                <option value="BSIE">BSIE</option>
+                                <option value="BSED">BSED</option>
+                            </select>
+                        </div>
                     </div>
-                    <div class="form-group">
-                        <label for="schoolYear">School Year</label>
-                        <select id="schoolYear" name="schoolYear" required>
-                            <option value="">Select School Year</option>
-                            <option value="2023-2024">2023-2024</option>
-                            <option value="2024-2025">2024-2025</option>
-                            <option value="2025-2026">2025-2026</option>
-                        </select>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="email">Email</label>
+                            <input type="email" id="email" name="email" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="contactNumber">Contact Number</label>
+                            <input type="tel" id="contactNumber" name="contactNumber" required>
+                        </div>
                     </div>
-                    <div class="form-group">
-                        <label for="schoolLevel">School Level</label>
-                        <select id="schoolLevel" name="schoolLevel" required>
-                            <option value="">Select School Level</option>
-                            <option value="Freshman">Freshman</option>
-                            <option value="Sophomore">Sophomore</option>
-                            <option value="Junior">Junior</option>
-                            <option value="Senior">Senior</option>
-                            <option value="Graduate">Graduate</option>
-                        </select>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="password">Password</label>
+                            <input type="password" id="password" name="password" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="confirmPassword">Confirm Password</label>
+                            <input type="password" id="confirmPassword" name="confirmPassword" required>
+                        </div>
                     </div>
-                    <div class="form-group">
-                        <label for="department">Department</label>
-                        <select id="department" name="department" required>
-                            <option value="">Select Department</option>
-                            <option value="Computer Science">Computer Science</option>
-                            <option value="Information Technology">Information Technology</option>
-                            <option value="Engineering">Engineering</option>
-                            <option value="Nursing">Nursing</option>
-                            <option value="Business">Business</option>
-                        </select>
+                    <div class="form-row">
+                        <button type="submit" class="btn-primary">Register</button>
                     </div>
-                    <div class="form-group">
-                        <label for="email">Email</label>
-                        <input type="email" id="email" name="email" required>
-                    </div>
-                    <div class="form-group">
-                        <label for="contactNumber">Contact Number</label>
-                        <input type="tel" id="contactNumber" name="contactNumber" required>
-                    </div>
-                    <div class="form-group">
-                        <label for="password">Password</label>
-                        <input type="password" id="password" name="password" required>
-                    </div>
-                    <div class="form-group">
-                        <label for="confirmPassword">Confirm Password</label>
-                        <input type="password" id="confirmPassword" name="confirmPassword" required>
-                    </div>
-                    <button type="submit" class="btn-primary">Register</button>
                 </form>
-                <p>Already have an account? <a href="login.html">Login here</a></p>
+                <div class="auth-links">
+                    <p>Already have an account? <a href="login.html" class="auth-link">Login here</a></p>
+                </div>
             </div>
         </div>
     </main>

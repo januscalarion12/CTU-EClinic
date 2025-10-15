@@ -33,6 +33,15 @@ document.addEventListener('DOMContentLoaded', function() {
                 toggleRoleSpecificFields();
             });
         }
+
+        // Auto-capitalize first letter for name fields and suffix
+        const nameFields = ['firstName', 'middleName', 'lastName', 'suffix'];
+        nameFields.forEach(fieldId => {
+            const field = document.getElementById(fieldId);
+            if (field) {
+                field.addEventListener('input', capitalizeFirstLetter);
+            }
+        });
     }
 });
 
@@ -66,14 +75,58 @@ function validateEmail() {
 
 function toggleRoleSpecificFields() {
     const role = document.getElementById('role').value;
+    const studentFields = document.querySelectorAll('.student-field');
+    const idNumberLabel = document.getElementById('idNumberLabel');
+    const idNumberInput = document.getElementById('idNumber');
     const specializationField = document.getElementById('specialization');
 
-    if (role === 'nurse' && specializationField) {
-        specializationField.style.display = 'block';
-        specializationField.required = true;
-    } else if (specializationField) {
-        specializationField.style.display = 'none';
-        specializationField.required = false;
+    if (role === 'student') {
+        // Show student-specific fields
+        studentFields.forEach(field => {
+            field.style.display = 'block';
+            const inputs = field.querySelectorAll('input, select');
+            inputs.forEach(input => input.required = true);
+        });
+        // Change label to ID Number
+        if (idNumberLabel) idNumberLabel.textContent = 'ID Number';
+        if (idNumberInput) idNumberInput.name = 'idNumber';
+        // Hide nurse-specific fields
+        if (specializationField) {
+            specializationField.style.display = 'none';
+            specializationField.required = false;
+        }
+    } else if (role === 'nurse') {
+        // Hide student-specific fields
+        studentFields.forEach(field => {
+            field.style.display = 'none';
+            const inputs = field.querySelectorAll('input, select');
+            inputs.forEach(input => {
+                input.required = false;
+                input.value = ''; // Clear values
+            });
+        });
+        // Change label to Employee ID
+        if (idNumberLabel) idNumberLabel.textContent = 'Employee ID';
+        if (idNumberInput) idNumberInput.name = 'employeeId';
+        // Show nurse-specific fields if any
+        if (specializationField) {
+            specializationField.style.display = 'block';
+            specializationField.required = true;
+        }
+    } else {
+        // Default: hide all optional fields
+        studentFields.forEach(field => {
+            field.style.display = 'none';
+            const inputs = field.querySelectorAll('input, select');
+            inputs.forEach(input => input.required = false);
+        });
+        if (specializationField) {
+            specializationField.style.display = 'none';
+            specializationField.required = false;
+        }
+        // Reset label
+        if (idNumberLabel) idNumberLabel.textContent = 'ID Number';
+        if (idNumberInput) idNumberInput.name = 'idNumber';
     }
 }
 
@@ -87,15 +140,26 @@ async function handleRegister(e) {
     const formData = new FormData(e.target);
     const registerData = {
         firstName: formData.get('firstName'),
+        middleName: formData.get('middleName'),
         lastName: formData.get('lastName'),
+        suffix: formData.get('suffix'),
         email: formData.get('email'),
+        contactNumber: formData.get('contactNumber'),
         password: formData.get('password'),
         role: formData.get('role')
     };
 
-    // Add specialization for nurses
-    if (registerData.role === 'nurse') {
-        registerData.specialization = formData.get('specialization');
+    // Add role-specific fields
+    if (registerData.role === 'student') {
+        registerData.idNumber = formData.get('idNumber');
+        registerData.schoolYear = formData.get('schoolYear');
+        registerData.schoolLevel = formData.get('schoolLevel');
+        registerData.department = formData.get('department');
+    } else if (registerData.role === 'nurse') {
+        registerData.employeeId = formData.get('employeeId');
+        // Add specialization if exists
+        const specialization = formData.get('specialization');
+        if (specialization) registerData.specialization = specialization;
     }
 
     // Client-side validation
@@ -144,13 +208,20 @@ function validateRegistrationData(data) {
     let isValid = true;
 
     // Name validation
-    if (!data.firstName || data.firstName.length < 2) {
-        showFieldError('firstName', 'First name must be at least 2 characters long');
+    if (!data.firstName || data.firstName.trim().length < 2 || !/^[a-zA-Z\s]+$/.test(data.firstName)) {
+        showFieldError('firstName', 'First name must be at least 2 characters and contain only letters and spaces');
         isValid = false;
     }
 
     if (!data.lastName || data.lastName.length < 2) {
         showFieldError('lastName', 'Last name must be at least 2 characters long');
+        isValid = false;
+    }
+
+    // Contact number validation (Philippine format)
+    const phPhoneRegex = /^(\+63|0)9\d{9}$/;
+    if (!data.contactNumber || !phPhoneRegex.test(data.contactNumber)) {
+        showFieldError('contactNumber', 'Please enter a valid Philippine phone number (e.g., +639123456789 or 09123456789)');
         isValid = false;
     }
 
@@ -179,10 +250,36 @@ function validateRegistrationData(data) {
         isValid = false;
     }
 
-    // Nurse-specific validation
-    if (data.role === 'nurse' && (!data.specialization || data.specialization.length < 2)) {
-        showFieldError('specialization', 'Specialization is required for nurses');
-        isValid = false;
+    // Role-specific validation
+    if (data.role === 'student') {
+        if (!data.idNumber) {
+            showFieldError('idNumber', 'ID Number is required for students');
+            isValid = false;
+        } else if (!/^\d{7}$/.test(data.idNumber)) {
+            showFieldError('idNumber', 'ID Number must be exactly 7 digits');
+            isValid = false;
+        }
+        if (!data.schoolYear) {
+            showFieldError('schoolYear', 'School Year is required for students');
+            isValid = false;
+        }
+        if (!data.schoolLevel) {
+            showFieldError('schoolLevel', 'School Level is required for students');
+            isValid = false;
+        }
+        if (!data.department) {
+            showFieldError('department', 'Department is required for students');
+            isValid = false;
+        }
+    } else if (data.role === 'nurse') {
+        if (!data.employeeId) {
+            showFieldError('idNumber', 'Employee ID is required for nurses');
+            isValid = false;
+        } else if (!/^\d{5}$/.test(data.employeeId)) {
+            showFieldError('idNumber', 'Employee ID must be exactly 5 digits');
+            isValid = false;
+        }
+        // Specialization is optional for nurses
     }
 
     return isValid;
@@ -217,6 +314,14 @@ function clearErrors() {
     fields.forEach(field => {
         field.style.borderColor = '#ddd';
     });
+}
+
+function capitalizeFirstLetter(event) {
+    const input = event.target;
+    const value = input.value;
+    if (value.length > 0) {
+        input.value = value.charAt(0).toUpperCase() + value.slice(1);
+    }
 }
 
 // Password strength indicator
@@ -284,29 +389,4 @@ if (termsCheckbox) {
         const submitButton = document.querySelector('button[type="submit"]');
         submitButton.disabled = !this.checked;
     });
-}
-
-// Auto-fill functionality for demo purposes
-function fillDemoData() {
-    document.getElementById('firstName').value = 'John';
-    document.getElementById('lastName').value = 'Doe';
-    document.getElementById('email').value = 'john.doe@example.com';
-    document.getElementById('password').value = 'Password123!';
-    document.getElementById('confirmPassword').value = 'Password123!';
-    document.getElementById('role').value = 'student';
-}
-
-// Add demo button for development
-if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
-    const demoButton = document.createElement('button');
-    demoButton.type = 'button';
-    demoButton.textContent = 'Fill Demo Data';
-    demoButton.className = 'btn-secondary';
-    demoButton.style.marginTop = '10px';
-    demoButton.onclick = fillDemoData;
-
-    const form = document.getElementById('registerForm');
-    if (form) {
-        form.appendChild(demoButton);
-    }
 }

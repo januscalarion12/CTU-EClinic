@@ -2,19 +2,19 @@
 
 CREATE TABLE users (
     id INT IDENTITY(1,1) PRIMARY KEY,
-    role NVARCHAR(20) NOT NULL CHECK (role IN ('admin', 'nurse', 'student')),
+    role NVARCHAR(20) NOT NULL CHECK (role IN ('nurse', 'student')),
     first_name NVARCHAR(100) NOT NULL,
     middle_name NVARCHAR(100),
     last_name NVARCHAR(100) NOT NULL,
     extension_name NVARCHAR(20),
     ctu_id NVARCHAR(50) UNIQUE,
-    school_year NVARCHAR(20),
-    school_level NVARCHAR(50),
-    course NVARCHAR(100),
     email NVARCHAR(255) UNIQUE NOT NULL,
     contact_number NVARCHAR(20),
     password_hash NVARCHAR(255) NOT NULL,
     is_email_confirmed BIT DEFAULT 0,
+    school_year NVARCHAR(20) NULL,
+    school_level NVARCHAR(50) NULL,
+    department NVARCHAR(100) NULL,
     created_at DATETIME2 DEFAULT GETDATE(),
     updated_at DATETIME2 DEFAULT GETDATE()
 );
@@ -37,6 +37,9 @@ CREATE TABLE students (
     blood_type NVARCHAR(10),
     allergies NTEXT,
     medical_conditions NTEXT,
+    school_year NVARCHAR(20),
+    school_level NVARCHAR(50),
+    department NVARCHAR(100),
     created_at DATETIME2 DEFAULT GETDATE(),
     updated_at DATETIME2 DEFAULT GETDATE(),
     FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE NO ACTION
