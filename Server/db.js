@@ -1,13 +1,35 @@
-const mysql = require('mysql2/promise');
+const sql = require('mssql');
 
-const pool = mysql.createPool({
-  host: process.env.DB_HOST || 'localhost',
-  user: process.env.DB_USER || 'root',
+const config = {
+  server: process.env.DB_HOST || 'localhost',
+  port: parseInt(process.env.DB_PORT) || 1433,
+  user: process.env.DB_USER || 'sa',
   password: process.env.DB_PASSWORD || '',
   database: process.env.DB_NAME || 'clinic_db',
-  waitForConnections: true,
-  connectionLimit: 10,
-  queueLimit: 0
-});
+  options: {
+    encrypt: true, // Use encryption
+    trustServerCertificate: true, // For local development
+    enableArithAbort: true,
+  },
+  pool: {
+    max: 10,
+    min: 0,
+    idleTimeoutMillis: 30000,
+  },
+};
 
-module.exports = pool;
+const poolPromise = new sql.ConnectionPool(config)
+  .connect()
+  .then(pool => {
+    console.log('Connected to SQL Server');
+    return pool;
+  })
+  .catch(err => {
+    console.error('Database connection failed:', err);
+    process.exit(1);
+  });
+
+module.exports = {
+  sql,
+  poolPromise,
+};
