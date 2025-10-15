@@ -4,6 +4,21 @@ const { poolPromise, sql } = require('../db');
 const { authorizeRole } = require('../middleware/auth');
 const { generateQRCode } = require('../utils/qr');
 
+// Helper function to get nurse ID from user ID
+async function getNurseId(userId) {
+  const pool = await poolPromise;
+  const nurseRequest = pool.request();
+  const nurseResult = await nurseRequest
+    .input('user_id', sql.Int, userId)
+    .query('SELECT id FROM nurses WHERE user_id = @user_id');
+
+  if (nurseResult.recordset.length === 0) {
+    throw new Error('Nurse profile not found');
+  }
+
+  return nurseResult.recordset[0].id;
+}
+
 // Get nurse's students
 router.get('/students', authorizeRole(['nurse']), async (req, res) => {
   try {
@@ -231,9 +246,10 @@ router.put('/profile', authorizeRole(['nurse']), async (req, res) => {
 // Get nurse availability
 router.get('/availability', authorizeRole(['nurse']), async (req, res) => {
   try {
-    const nurseId = req.user.id;
+    const userId = req.user.id;
     const { date } = req.query;
 
+    const nurseId = await getNurseId(userId);
     const pool = await poolPromise;
 
     let query = `
@@ -254,6 +270,9 @@ router.get('/availability', authorizeRole(['nurse']), async (req, res) => {
     res.json(result.recordset);
   } catch (error) {
     console.error('Error fetching availability:', error);
+    if (error.message === 'Nurse profile not found') {
+      return res.status(404).json({ message: error.message });
+    }
     res.status(500).json({ message: 'Error fetching availability' });
   }
 });
@@ -261,9 +280,10 @@ router.get('/availability', authorizeRole(['nurse']), async (req, res) => {
 // Create/Update availability
 router.post('/availability', authorizeRole(['nurse']), async (req, res) => {
   try {
-    const nurseId = req.user.id;
+    const userId = req.user.id;
     const { date, startTime, endTime, maxPatients } = req.body;
 
+    const nurseId = await getNurseId(userId);
     const pool = await poolPromise;
 
     // Check if availability already exists for this date
@@ -281,8 +301,8 @@ router.post('/availability', authorizeRole(['nurse']), async (req, res) => {
       const updateRequest = pool.request();
       await updateRequest
         .input('id', sql.Int, existing.recordset[0].id)
-        .input('start_time', sql.Time, startTime)
-        .input('end_time', sql.Time, endTime)
+        .input('start_time', sql.VarChar, startTime)
+        .input('end_time', sql.VarChar, endTime)
         .input('maxPatients', sql.Int, maxPatients)
         .query(`
           UPDATE nurse_availability
@@ -300,8 +320,8 @@ router.post('/availability', authorizeRole(['nurse']), async (req, res) => {
       await insertRequest
         .input('nurse_id', sql.Int, nurseId)
         .input('date', sql.Date, date)
-        .input('start_time', sql.Time, startTime)
-        .input('end_time', sql.Time, endTime)
+        .input('start_time', sql.VarChar, startTime)
+        .input('end_time', sql.VarChar, endTime)
         .input('maxPatients', sql.Int, maxPatients)
         .query(`
           INSERT INTO nurse_availability (nurse_id, date, start_time, end_time, maxPatients)
@@ -312,6 +332,9 @@ router.post('/availability', authorizeRole(['nurse']), async (req, res) => {
     }
   } catch (error) {
     console.error('Error saving availability:', error);
+    if (error.message === 'Nurse profile not found') {
+      return res.status(404).json({ message: error.message });
+    }
     res.status(500).json({ message: 'Error saving availability' });
   }
 });
@@ -319,9 +342,10 @@ router.post('/availability', authorizeRole(['nurse']), async (req, res) => {
 // Get specific availability slot
 router.get('/availability/:id', authorizeRole(['nurse']), async (req, res) => {
   try {
-    const nurseId = req.user.id;
+    const userId = req.user.id;
     const id = req.params.id;
 
+    const nurseId = await getNurseId(userId);
     const pool = await poolPromise;
 
     const request = pool.request();
@@ -341,6 +365,9 @@ router.get('/availability/:id', authorizeRole(['nurse']), async (req, res) => {
     res.json(result.recordset[0]);
   } catch (error) {
     console.error('Error fetching availability slot:', error);
+    if (error.message === 'Nurse profile not found') {
+      return res.status(404).json({ message: error.message });
+    }
     res.status(500).json({ message: 'Error fetching availability slot' });
   }
 });
@@ -348,9 +375,10 @@ router.get('/availability/:id', authorizeRole(['nurse']), async (req, res) => {
 // Delete availability slot
 router.delete('/availability/:id', authorizeRole(['nurse']), async (req, res) => {
   try {
-    const nurseId = req.user.id;
+    const userId = req.user.id;
     const id = req.params.id;
 
+    const nurseId = await getNurseId(userId);
     const pool = await poolPromise;
 
     const request = pool.request();
@@ -369,9 +397,11 @@ router.delete('/availability/:id', authorizeRole(['nurse']), async (req, res) =>
     res.json({ message: 'Availability slot deleted successfully' });
   } catch (error) {
     console.error('Error deleting availability slot:', error);
+    if (error.message === 'Nurse profile not found') {
+      return res.status(404).json({ message: error.message });
+    }
     res.status(500).json({ message: 'Error deleting availability slot' });
   }
 });
 
-module.exports = router;
 module.exports = router;
