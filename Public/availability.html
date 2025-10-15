@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Nurse Availability - Clinic Management System</title>
+    <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+    <header>
+        <nav>
+            <div class="nav-container">
+                <h1>Clinic Management System</h1>
+                <ul>
+                    <li><a href="student.html">Dashboard</a></li>
+                    <li><a href="book_appointment.html">Book Appointment</a></li>
+                    <li><a href="medical-records.html">Medical Records</a></li>
+                    <li><a href="profile.html">Profile</a></li>
+                    <li><a href="notifications.html">Notifications</a></li>
+                    <li><a href="#" id="logout">Logout</a></li>
+                </ul>
+            </div>
+        </nav>
+    </header>
+
+    <main>
+        <div class="container">
+            <h2>Nurse Availability</h2>
+            <div class="availability-calendar">
+                <div class="calendar-controls">
+                    <button id="prevWeek" class="btn-secondary">< Previous Week</button>
+                    <span id="currentWeek">Current Week</span>
+                    <button id="nextWeek" class="btn-secondary">Next Week ></button>
+                </div>
+                <div id="availabilityGrid">
+                    <!-- Availability grid will be loaded here -->
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <footer>
+        <p>&copy; 2024 Clinic Management System. All rights reserved.</p>
+    </footer>
+
+    <script src="js/common.js"></script>
+</body>
+</html>

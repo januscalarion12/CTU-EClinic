@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Nurse Students - Clinic Management System</title>
+    <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+    <header>
+        <nav>
+            <div class="nav-container">
+                <h1>Clinic Management System</h1>
+                <ul>
+                    <li><a href="nurse_dashboard.html">Dashboard</a></li>
+                    <li><a href="nurse_appointments.html">Appointments</a></li>
+                    <li><a href="nurse_records.html">Records</a></li>
+                    <li><a href="nurse_profile.html">Profile</a></li>
+                    <li><a href="nurse_reports.html">Reports</a></li>
+                    <li><a href="nurse_scan.html">Scan QR</a></li>
+                    <li><a href="#" id="logout">Logout</a></li>
+                </ul>
+            </div>
+        </nav>
+    </header>
+
+    <main>
+        <div class="container">
+            <h2>Students</h2>
+            <div class="search-form">
+                <input type="text" id="searchStudent" placeholder="Search students...">
+                <button id="searchBtn" class="btn-secondary">Search</button>
+            </div>
+
+            <div class="students-list">
+                <table id="studentsTable">
+                    <thead>
+                        <tr>
+                            <th>Name</th>
+                            <th>Email</th>
+                            <th>Student ID</th>
+                            <th>Last Visit</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <!-- Students will be loaded here -->
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </main>
+
+    <footer>
+        <p>&copy; 2024 Clinic Management System. All rights reserved.</p>
+    </footer>
+
+    <script src="js/common.js"></script>
+</body>
+</html>

@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Admin Settings - Clinic Management System</title>
+    <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+    <header>
+        <nav>
+            <div class="nav-container">
+                <h1>Clinic Management System</h1>
+                <ul>
+                    <li><a href="admin_dashboard.html">Dashboard</a></li>
+                    <li><a href="admin_users.html">Users</a></li>
+                    <li><a href="admin_reports.html">Reports</a></li>
+                    <li><a href="admin_settings.html">Settings</a></li>
+                    <li><a href="#" id="logout">Logout</a></li>
+                </ul>
+            </div>
+        </nav>
+    </header>
+
+    <main>
+        <div class="container">
+            <h2>System Settings</h2>
+            <div class="settings-form">
+                <form id="settingsForm">
+                    <div class="form-group">
+                        <label for="clinicName">Clinic Name</label>
+                        <input type="text" id="clinicName" name="clinicName" value="Clinic Management System">
+                    </div>
+                    <div class="form-group">
+                        <label for="maxAppointments">Max Appointments per Day</label>
+                        <input type="number" id="maxAppointments" name="maxAppointments" value="20">
+                    </div>
+                    <div class="form-group">
+                        <label for="workingHours">Working Hours</label>
+                        <input type="text" id="workingHours" name="workingHours" value="8:00 AM - 5:00 PM">
+                    </div>
+                    <div class="form-group">
+                        <label for="emailNotifications">Email Notifications</label>
+                        <input type="checkbox" id="emailNotifications" name="emailNotifications" checked>
+                    </div>
+                    <div class="form-group">
+                        <label for="smsNotifications">SMS Notifications</label>
+                        <input type="checkbox" id="smsNotifications" name="smsNotifications">
+                    </div>
+                    <button type="submit" class="btn-primary">Save Settings</button>
+                </form>
+            </div>
+        </div>
+    </main>
+
+    <footer>
+        <p>&copy; 2024 Clinic Management System. All rights reserved.</p>
+    </footer>
+
+    <script src="js/common.js"></script>
+</body>
+</html>

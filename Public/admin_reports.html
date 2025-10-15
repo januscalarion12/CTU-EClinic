@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Admin Reports - Clinic Management System</title>
+    <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+    <header>
+        <nav>
+            <div class="nav-container">
+                <h1>Clinic Management System</h1>
+                <ul>
+                    <li><a href="admin_dashboard.html">Dashboard</a></li>
+                    <li><a href="admin_users.html">Users</a></li>
+                    <li><a href="admin_reports.html">Reports</a></li>
+                    <li><a href="admin_settings.html">Settings</a></li>
+                    <li><a href="#" id="logout">Logout</a></li>
+                </ul>
+            </div>
+        </nav>
+    </header>
+
+    <main>
+        <div class="container">
+            <h2>System Reports</h2>
+            <div class="reports-grid">
+                <div class="report-card">
+                    <h3>User Statistics</h3>
+                    <p>Comprehensive user statistics</p>
+                    <button class="btn-secondary" onclick="generateUserStats()">Generate Report</button>
+                </div>
+                <div class="report-card">
+                    <h3>Appointment Analytics</h3>
+                    <p>Appointment trends and analytics</p>
+                    <button class="btn-secondary" onclick="generateAppointmentAnalytics()">Generate Report</button>
+                </div>
+                <div class="report-card">
+                    <h3>System Usage</h3>
+                    <p>System usage statistics</p>
+                    <button class="btn-secondary" onclick="generateUsageReport()">Generate Report</button>
+                </div>
+                <div class="report-card">
+                    <h3>Health Records Summary</h3>
+                    <p>Summary of all health records</p>
+                    <button class="btn-secondary" onclick="generateHealthSummary()">Generate Report</button>
+                </div>
+            </div>
+
+            <div class="report-output" id="reportOutput" style="display: none;">
+                <h3>Report Results</h3>
+                <div id="reportContent">
+                    <!-- Report content will be displayed here -->
+                </div>
+                <button class="btn-primary" onclick="printReport()">Print Report</button>
+                <button class="btn-secondary" onclick="exportReport()">Export PDF</button>
+            </div>
+        </div>
+    </main>
+
+    <footer>
+        <p>&copy; 2024 Clinic Management System. All rights reserved.</p>
+    </footer>
+
+    <script src="js/common.js"></script>
+</body>
+</html>

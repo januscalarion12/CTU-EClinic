@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Admin Users - Clinic Management System</title>
+    <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+    <header>
+        <nav>
+            <div class="nav-container">
+                <h1>Clinic Management System</h1>
+                <ul>
+                    <li><a href="admin_dashboard.html">Dashboard</a></li>
+                    <li><a href="admin_users.html">Users</a></li>
+                    <li><a href="admin_reports.html">Reports</a></li>
+                    <li><a href="admin_settings.html">Settings</a></li>
+                    <li><a href="#" id="logout">Logout</a></li>
+                </ul>
+            </div>
+        </nav>
+    </header>
+
+    <main>
+        <div class="container">
+            <h2>User Management</h2>
+            <div class="user-management">
+                <div class="user-tabs">
+                    <button class="tab-btn active" onclick="showTab('students')">Students</button>
+                    <button class="tab-btn" onclick="showTab('nurses')">Nurses</button>
+                    <button class="tab-btn" onclick="showTab('admins')">Admins</button>
+                </div>
+
+                <div class="user-list" id="studentsTab">
+                    <h3>Students</h3>
+                    <table id="studentsTable">
+                        <thead>
+                            <tr>
+                                <th>Name</th>
+                                <th>Email</th>
+                                <th>Status</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <!-- Students will be loaded here -->
+                        </tbody>
+                    </table>
+                </div>
+
+                <div class="user-list" id="nursesTab" style="display: none;">
+                    <h3>Nurses</h3>
+                    <table id="nursesTable">
+                        <thead>
+                            <tr>
+                                <th>Name</th>
+                                <th>Email</th>
+                                <th>Status</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <!-- Nurses will be loaded here -->
+                        </tbody>
+                    </table>
+                </div>
+
+                <div class="user-list" id="adminsTab" style="display: none;">
+                    <h3>Admins</h3>
+                    <table id="adminsTable">
+                        <thead>
+                            <tr>
+                                <th>Name</th>
+                                <th>Email</th>
+                                <th>Status</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <!-- Admins will be loaded here -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <footer>
+        <p>&copy; 2024 Clinic Management System. All rights reserved.</p>
+    </footer>
+
+    <script src="js/common.js"></script>
+</body>
+</html>
