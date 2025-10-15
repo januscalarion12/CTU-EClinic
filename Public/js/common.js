@@ -9,6 +9,7 @@ document.addEventListener('DOMContentLoaded', function() {
     initializeAuth();
     initializeNavigation();
     initializeForms();
+    initializeUserProfileDropdown();
 });
 
 // Authentication functions
@@ -770,4 +771,67 @@ function handleQRCode(data) {
 if (document.getElementById('startScan')) {
     document.getElementById('startScan').addEventListener('click', startScanner);
     document.getElementById('stopScan').addEventListener('click', stopScanner);
+}
+
+// User Profile Dropdown functionality
+function initializeUserProfileDropdown() {
+    const dropdownToggle = document.getElementById('dropdownToggle');
+    const profileDropdown = document.getElementById('profileDropdown');
+
+    if (dropdownToggle && profileDropdown) {
+        // Toggle dropdown on click
+        dropdownToggle.addEventListener('click', function(e) {
+            e.stopPropagation();
+            const isOpen = profileDropdown.classList.contains('show');
+
+            // Close all dropdowns first
+            closeAllDropdowns();
+
+            if (!isOpen) {
+                profileDropdown.classList.add('show');
+                dropdownToggle.classList.add('rotated');
+            }
+        });
+
+        // Close dropdown when clicking outside
+        document.addEventListener('click', function(e) {
+            if (!dropdownToggle.contains(e.target) && !profileDropdown.contains(e.target)) {
+                closeAllDropdowns();
+            }
+        });
+
+        // Close dropdown on escape key
+        document.addEventListener('keydown', function(e) {
+            if (e.key === 'Escape') {
+                closeAllDropdowns();
+            }
+        });
+    }
+
+    // Load user information from localStorage
+    loadUserInfo();
+}
+
+function closeAllDropdowns() {
+    const dropdowns = document.querySelectorAll('.profile-dropdown');
+    const toggles = document.querySelectorAll('.dropdown-toggle');
+
+    dropdowns.forEach(dropdown => dropdown.classList.remove('show'));
+    toggles.forEach(toggle => toggle.classList.remove('rotated'));
+}
+
+function loadUserInfo() {
+    const user = JSON.parse(localStorage.getItem('user'));
+    if (user) {
+        const userNameElement = document.getElementById('userName');
+        const userRoleElement = document.getElementById('userRole');
+
+        if (userNameElement) {
+            userNameElement.textContent = `${user.firstName} ${user.lastName}`;
+        }
+
+        if (userRoleElement) {
+            userRoleElement.textContent = user.role.charAt(0).toUpperCase() + user.role.slice(1);
+        }
+    }
 }

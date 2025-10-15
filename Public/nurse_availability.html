@@ -5,59 +5,218 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Nurse Availability - Clinic Management System</title>
     <link rel="stylesheet" href="css/style.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
 </head>
 <body>
-    <header>
-        <nav>
-            <div class="nav-container">
-                <h1>Clinic Management System</h1>
-                <ul>
-                    <li><a href="nurse_dashboard.html">Dashboard</a></li>
-                    <li><a href="nurse_appointments.html">Appointments</a></li>
-                    <li><a href="nurse_records.html">Records</a></li>
-                    <li><a href="nurse_profile.html">Profile</a></li>
-                    <li><a href="nurse_reports.html">Reports</a></li>
-                    <li><a href="nurse_scan.html">Scan QR</a></li>
-                    <li><a href="#" id="logout">Logout</a></li>
-                </ul>
-            </div>
-        </nav>
-    </header>
+    <!-- Sidebar Navigation -->
+    <nav class="sidebar" id="sidebar">
+        <div class="sidebar-header">
+            <h1>Clinic Management</h1>
+        </div>
+        <div class="sidebar-nav">
+            <ul>
+                <li><a href="nurse_dashboard.html"><span class="nav-icon"><i class="fas fa-tachometer-alt"></i></span><span class="nav-text">Dashboard</span></a></li>
+                <li><a href="nurse_appointments.html"><span class="nav-icon"><i class="fas fa-calendar-check"></i></span><span class="nav-text">Appointments</span></a></li>
+                <li><a href="nurse_records.html"><span class="nav-icon"><i class="fas fa-file-medical"></i></span><span class="nav-text">Medical Records</span></a></li>
+                <li><a href="nurse_availability.html" class="active"><span class="nav-icon"><i class="fas fa-clock"></i></span><span class="nav-text">Availability</span></a></li>
+                <li><a href="nurse_students.html"><span class="nav-icon"><i class="fas fa-users"></i></span><span class="nav-text">Students</span></a></li>
+                <li><a href="nurse_reports.html"><span class="nav-icon"><i class="fas fa-chart-bar"></i></span><span class="nav-text">Reports</span></a></li>
+                <li><a href="nurse_scan.html"><span class="nav-icon"><i class="fas fa-qrcode"></i></span><span class="nav-text">QR Scanner</span></a></li>
+                <li><a href="nurse_profile.html"><span class="nav-icon"><i class="fas fa-user"></i></span><span class="nav-text">Profile</span></a></li>
+                <li><a href="#" id="logout"><span class="nav-icon"><i class="fas fa-sign-out-alt"></i></span><span class="nav-text">Logout</span></a></li>
+            </ul>
+        </div>
+    </nav>
 
-    <main>
-        <div class="container">
-            <h2>Set Availability</h2>
-            <div class="availability-form">
-                <form id="availabilityForm">
-                    <div class="form-group">
-                        <label for="date">Date</label>
-                        <input type="date" id="date" name="date" required>
-                    </div>
-                    <div class="form-group">
-                        <label for="startTime">Start Time</label>
-                        <input type="time" id="startTime" name="startTime" required>
-                    </div>
-                    <div class="form-group">
-                        <label for="endTime">End Time</label>
-                        <input type="time" id="endTime" name="endTime" required>
-                    </div>
-                    <button type="submit" class="btn-primary">Set Availability</button>
-                </form>
+    <!-- Sidebar Toggle Button -->
+    <button class="sidebar-toggle" id="sidebarToggle">
+        <i class="fas fa-bars"></i>
+    </button>
+
+    <!-- Mobile Overlay -->
+    <div class="sidebar-overlay" id="sidebarOverlay"></div>
+
+    <!-- Main Content -->
+    <main class="main-content">
+        <div class="dashboard">
+            <div class="dashboard-header">
+                <h2>Schedule Management</h2>
+                <p class="dashboard-subtitle">Set your availability and manage working hours</p>
             </div>
 
+            <!-- Quick Actions -->
+            <div class="dashboard-grid">
+                <div class="dashboard-card">
+                    <div class="card-icon"><i class="fas fa-plus-circle"></i></div>
+                    <h3>Add Time Slot</h3>
+                    <p>Create new availability slots for appointments</p>
+                    <button class="btn-primary" onclick="showAddSlotForm()">Add Slot</button>
+                </div>
+                <div class="dashboard-card">
+                    <div class="card-icon"><i class="fas fa-calendar-week"></i></div>
+                    <h3>Weekly View</h3>
+                    <p>View your complete weekly schedule</p>
+                    <button class="btn-primary" onclick="showWeeklyView()">View Week</button>
+                </div>
+                <div class="dashboard-card">
+                    <div class="card-icon"><i class="fas fa-copy"></i></div>
+                    <h3>Copy Schedule</h3>
+                    <p>Copy availability from one day to another</p>
+                    <button class="btn-primary" onclick="showCopySchedule()">Copy Schedule</button>
+                </div>
+                <div class="dashboard-card">
+                    <div class="card-icon"><i class="fas fa-trash-alt"></i></div>
+                    <h3>Clear Schedule</h3>
+                    <p>Remove all availability slots</p>
+                    <button class="btn-secondary" onclick="clearAllSlots()">Clear All</button>
+                </div>
+            </div>
+
+            <!-- Availability Form -->
+            <div class="availability-form" id="availabilityForm" style="display: none;">
+                <div class="form-card">
+                    <h3>Add Availability Slot</h3>
+                    <form id="addAvailabilityForm">
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label for="slotDate">Date</label>
+                                <input type="date" id="slotDate" name="date" required>
+                            </div>
+                            <div class="form-group">
+                                <label for="slotStartTime">Start Time</label>
+                                <input type="time" id="slotStartTime" name="startTime" required>
+                            </div>
+                            <div class="form-group">
+                                <label for="slotEndTime">End Time</label>
+                                <input type="time" id="slotEndTime" name="endTime" required>
+                            </div>
+                        </div>
+                        <div class="form-actions">
+                            <button type="submit" class="btn-primary">Add Slot</button>
+                            <button type="button" class="btn-secondary" onclick="hideAddSlotForm()">Cancel</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+
+            <!-- Current Availability -->
             <div class="availability-list">
-                <h3>Current Availability</h3>
-                <div id="availabilitySlots">
+                <div class="list-header">
+                    <h3>Your Availability Schedule</h3>
+                    <div class="list-filters">
+                        <select id="monthFilter" class="filter-select">
+                            <option value="">All Months</option>
+                            <option value="01">January</option>
+                            <option value="02">February</option>
+                            <option value="03">March</option>
+                            <option value="04">April</option>
+                            <option value="05">May</option>
+                            <option value="06">June</option>
+                            <option value="07">July</option>
+                            <option value="08">August</option>
+                            <option value="09">September</option>
+                            <option value="10">October</option>
+                            <option value="11">November</option>
+                            <option value="12">December</option>
+                        </select>
+                        <button class="btn-secondary" onclick="refreshAvailability()">Refresh</button>
+                    </div>
+                </div>
+                <div id="availabilitySlots" class="availability-grid">
                     <!-- Availability slots will be loaded here -->
                 </div>
             </div>
         </div>
     </main>
 
-    <footer>
-        <p>&copy; 2024 Clinic Management System. All rights reserved.</p>
-    </footer>
-
     <script src="js/common.js"></script>
+    <script>
+        // Sidebar toggle functionality
+        document.getElementById('sidebarToggle').addEventListener('click', function() {
+            const sidebar = document.getElementById('sidebar');
+            const overlay = document.getElementById('sidebarOverlay');
+
+            if (window.innerWidth <= 768) {
+                sidebar.classList.toggle('mobile-open');
+                overlay.classList.toggle('active');
+            } else {
+                sidebar.classList.toggle('collapsed');
+            }
+        });
+
+        document.getElementById('sidebarOverlay').addEventListener('click', function() {
+            document.getElementById('sidebar').classList.remove('mobile-open');
+            this.classList.remove('active');
+        });
+
+        // Set active nav item
+        const currentPage = window.location.pathname.split('/').pop();
+        const navLinks = document.querySelectorAll('.sidebar-nav a');
+        navLinks.forEach(link => {
+            if (link.getAttribute('href') === currentPage) {
+                link.classList.add('active');
+            }
+        });
+
+        // Form toggle functions
+        function showAddSlotForm() {
+            document.getElementById('availabilityForm').style.display = 'block';
+            document.getElementById('slotDate').focus();
+        }
+
+        function hideAddSlotForm() {
+            document.getElementById('availabilityForm').style.display = 'none';
+            document.getElementById('addAvailabilityForm').reset();
+        }
+
+        function showWeeklyView() {
+            // Implement weekly view functionality
+            alert('Weekly view feature coming soon!');
+        }
+
+        function showCopySchedule() {
+            // Implement copy schedule functionality
+            alert('Copy schedule feature coming soon!');
+        }
+
+        function clearAllSlots() {
+            if (confirm('Are you sure you want to clear all availability slots?')) {
+                // Implement clear all functionality
+                alert('All slots cleared!');
+            }
+        }
+
+        function refreshAvailability() {
+            // Implement refresh functionality
+            loadAvailabilitySlots();
+        }
+
+        // Load availability slots
+        function loadAvailabilitySlots() {
+            const slotsContainer = document.getElementById('availabilitySlots');
+            // This would typically fetch data from your backend
+            slotsContainer.innerHTML = `
+                <div class="availability-slot">
+                    <div class="slot-date">2024-01-15</div>
+                    <div class="slot-time">09:00 - 12:00</div>
+                    <div class="slot-actions">
+                        <button class="btn-small" onclick="editSlot(1)">Edit</button>
+                        <button class="btn-small btn-danger" onclick="deleteSlot(1)">Delete</button>
+                    </div>
+                </div>
+                <div class="availability-slot">
+                    <div class="slot-date">2024-01-16</div>
+                    <div class="slot-time">14:00 - 17:00</div>
+                    <div class="slot-actions">
+                        <button class="btn-small" onclick="editSlot(2)">Edit</button>
+                        <button class="btn-small btn-danger" onclick="deleteSlot(2)">Delete</button>
+                    </div>
+                </div>
+            `;
+        }
+
+        // Load slots on page load
+        loadAvailabilitySlots();
+    </script>
 </body>
 </html>

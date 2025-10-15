@@ -5,74 +5,287 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Nurse Records - Clinic Management System</title>
     <link rel="stylesheet" href="css/style.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
 </head>
 <body>
-    <header>
-        <nav>
-            <div class="nav-container">
-                <h1>Clinic Management System</h1>
-                <ul>
-                    <li><a href="nurse_dashboard.html">Dashboard</a></li>
-                    <li><a href="nurse_appointments.html">Appointments</a></li>
-                    <li><a href="nurse_records.html">Records</a></li>
-                    <li><a href="nurse_profile.html">Profile</a></li>
-                    <li><a href="nurse_reports.html">Reports</a></li>
-                    <li><a href="nurse_scan.html">Scan QR</a></li>
-                    <li><a href="#" id="logout">Logout</a></li>
-                </ul>
-            </div>
-        </nav>
-    </header>
+    <!-- Sidebar Navigation -->
+    <nav class="sidebar" id="sidebar">
+        <div class="sidebar-header">
+            <h1>Clinic Management</h1>
+        </div>
+        <div class="sidebar-nav">
+            <ul>
+                <li><a href="nurse_dashboard.html"><span class="nav-icon"><i class="fas fa-tachometer-alt"></i></span><span class="nav-text">Dashboard</span></a></li>
+                <li><a href="nurse_appointments.html"><span class="nav-icon"><i class="fas fa-calendar-check"></i></span><span class="nav-text">Appointments</span></a></li>
+                <li><a href="nurse_records.html" class="active"><span class="nav-icon"><i class="fas fa-file-medical"></i></span><span class="nav-text">Medical Records</span></a></li>
+                <li><a href="nurse_availability.html"><span class="nav-icon"><i class="fas fa-clock"></i></span><span class="nav-text">Availability</span></a></li>
+                <li><a href="nurse_students.html"><span class="nav-icon"><i class="fas fa-users"></i></span><span class="nav-text">Students</span></a></li>
+                <li><a href="nurse_reports.html"><span class="nav-icon"><i class="fas fa-chart-bar"></i></span><span class="nav-text">Reports</span></a></li>
+                <li><a href="nurse_scan.html"><span class="nav-icon"><i class="fas fa-qrcode"></i></span><span class="nav-text">QR Scanner</span></a></li>
+                <li><a href="nurse_profile.html"><span class="nav-icon"><i class="fas fa-user"></i></span><span class="nav-text">Profile</span></a></li>
+                <li><a href="#" id="logout"><span class="nav-icon"><i class="fas fa-sign-out-alt"></i></span><span class="nav-text">Logout</span></a></li>
+            </ul>
+        </div>
+    </nav>
 
-    <main>
-        <div class="container">
-            <h2>Medical Records</h2>
+    <!-- Sidebar Toggle Button -->
+    <button class="sidebar-toggle" id="sidebarToggle">
+        <i class="fas fa-bars"></i>
+    </button>
+
+    <!-- Mobile Overlay -->
+    <div class="sidebar-overlay" id="sidebarOverlay"></div>
+
+    <!-- Main Content -->
+    <main class="main-content">
+        <div class="dashboard">
+            <div class="dashboard-header">
+                <h2>Medical Records Management</h2>
+                <p class="dashboard-subtitle">Access and manage patient medical records and health information</p>
+            </div>
+
+            <!-- Quick Actions -->
+            <div class="dashboard-grid">
+                <div class="dashboard-card">
+                    <div class="card-icon"><i class="fas fa-plus-circle"></i></div>
+                    <h3>Add New Record</h3>
+                    <p>Create a new medical record for a patient</p>
+                    <button class="btn-primary" onclick="showAddRecordForm()">Add Record</button>
+                </div>
+                <div class="dashboard-card">
+                    <div class="card-icon"><i class="fas fa-search"></i></div>
+                    <h3>Search Records</h3>
+                    <p>Find patient records by name or ID</p>
+                    <button class="btn-primary" onclick="focusSearch()">Search</button>
+                </div>
+                <div class="dashboard-card">
+                    <div class="card-icon"><i class="fas fa-file-export"></i></div>
+                    <h3>Export Records</h3>
+                    <p>Export medical records for reporting</p>
+                    <button class="btn-primary" onclick="exportRecords()">Export</button>
+                </div>
+                <div class="dashboard-card">
+                    <div class="card-icon"><i class="fas fa-history"></i></div>
+                    <h3>Recent Activity</h3>
+                    <p>View recently accessed records</p>
+                    <button class="btn-primary" onclick="showRecentActivity()">View Activity</button>
+                </div>
+            </div>
+
+            <!-- Search and Filters -->
             <div class="search-form">
-                <input type="text" id="searchStudent" placeholder="Search student...">
-                <button id="searchBtn" class="btn-secondary">Search</button>
+                <div class="search-row">
+                    <div class="search-input-group">
+                        <i class="fas fa-search search-icon"></i>
+                        <input type="text" id="searchStudent" placeholder="Search by student name, ID, or condition...">
+                    </div>
+                    <div class="filter-group">
+                        <select id="recordTypeFilter" class="filter-select">
+                            <option value="">All Record Types</option>
+                            <option value="consultation">Consultation</option>
+                            <option value="treatment">Treatment</option>
+                            <option value="vaccination">Vaccination</option>
+                            <option value="emergency">Emergency</option>
+                        </select>
+                        <select id="dateFilter" class="filter-select">
+                            <option value="">All Dates</option>
+                            <option value="today">Today</option>
+                            <option value="week">This Week</option>
+                            <option value="month">This Month</option>
+                            <option value="year">This Year</option>
+                        </select>
+                        <button id="searchBtn" class="btn-primary">Search</button>
+                        <button id="clearBtn" class="btn-secondary" onclick="clearFilters()">Clear</button>
+                    </div>
+                </div>
             </div>
 
+            <!-- Records List -->
             <div class="records-list">
-                <div id="recordsContainer">
+                <div class="list-header">
+                    <h3>Patient Records</h3>
+                    <div class="list-stats">
+                        <span id="totalRecords">0</span> records found
+                    </div>
+                </div>
+                <div id="recordsContainer" class="records-grid">
                     <!-- Records will be loaded here -->
                 </div>
             </div>
 
+            <!-- Add/Edit Record Form -->
             <div class="record-form" id="recordForm" style="display: none;">
-                <h3>Add/Edit Record</h3>
-                <form id="addRecordForm">
-                    <input type="hidden" id="recordId" name="recordId">
-                    <div class="form-group">
-                        <label for="studentId">Student ID</label>
-                        <input type="text" id="studentId" name="studentId" required>
+                <div class="form-card">
+                    <div class="form-header">
+                        <h3 id="formTitle">Add New Medical Record</h3>
+                        <p>Enter patient information and medical details</p>
                     </div>
-                    <div class="form-group">
-                        <label for="diagnosis">Diagnosis</label>
-                        <textarea id="diagnosis" name="diagnosis" required></textarea>
-                    </div>
-                    <div class="form-group">
-                        <label for="treatment">Treatment</label>
-                        <textarea id="treatment" name="treatment" required></textarea>
-                    </div>
-                    <div class="form-group">
-                        <label for="medication">Medication</label>
-                        <textarea id="medication" name="medication"></textarea>
-                    </div>
-                    <div class="form-group">
-                        <label for="notes">Notes</label>
-                        <textarea id="notes" name="notes"></textarea>
-                    </div>
-                    <button type="submit" class="btn-primary">Save Record</button>
-                    <button type="button" id="cancelBtn" class="btn-secondary">Cancel</button>
-                </form>
+                    <form id="addRecordForm">
+                        <input type="hidden" id="recordId" name="recordId">
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label for="studentId">Student ID</label>
+                                <input type="text" id="studentId" name="studentId" required>
+                            </div>
+                            <div class="form-group">
+                                <label for="studentName">Student Name</label>
+                                <input type="text" id="studentName" name="studentName" readonly>
+                            </div>
+                        </div>
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label for="recordType">Record Type</label>
+                                <select id="recordType" name="recordType" required>
+                                    <option value="">Select Type</option>
+                                    <option value="consultation">Consultation</option>
+                                    <option value="treatment">Treatment</option>
+                                    <option value="vaccination">Vaccination</option>
+                                    <option value="emergency">Emergency</option>
+                                    <option value="follow-up">Follow-up</option>
+                                </select>
+                            </div>
+                            <div class="form-group">
+                                <label for="visitDate">Visit Date</label>
+                                <input type="date" id="visitDate" name="visitDate" required>
+                            </div>
+                        </div>
+                        <div class="form-group">
+                            <label for="diagnosis">Diagnosis/Condition</label>
+                            <textarea id="diagnosis" name="diagnosis" rows="3" required placeholder="Describe the medical condition or diagnosis"></textarea>
+                        </div>
+                        <div class="form-group">
+                            <label for="treatment">Treatment Provided</label>
+                            <textarea id="treatment" name="treatment" rows="3" required placeholder="Describe the treatment administered"></textarea>
+                        </div>
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label for="medication">Medication Prescribed</label>
+                                <textarea id="medication" name="medication" rows="2" placeholder="List any medications prescribed"></textarea>
+                            </div>
+                            <div class="form-group">
+                                <label for="followUp">Follow-up Required</label>
+                                <select id="followUp" name="followUp">
+                                    <option value="no">No</option>
+                                    <option value="yes">Yes</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div class="form-group">
+                            <label for="notes">Additional Notes</label>
+                            <textarea id="notes" name="notes" rows="3" placeholder="Any additional observations or notes"></textarea>
+                        </div>
+                        <div class="form-actions">
+                            <button type="submit" class="btn-primary">Save Record</button>
+                            <button type="button" id="cancelBtn" class="btn-secondary" onclick="hideRecordForm()">Cancel</button>
+                        </div>
+                    </form>
+                </div>
             </div>
         </div>
     </main>
 
-    <footer>
-        <p>&copy; 2024 Clinic Management System. All rights reserved.</p>
-    </footer>
-
     <script src="js/common.js"></script>
+    <script>
+        // Sidebar toggle functionality
+        document.getElementById('sidebarToggle').addEventListener('click', function() {
+            const sidebar = document.getElementById('sidebar');
+            const overlay = document.getElementById('sidebarOverlay');
+
+            if (window.innerWidth <= 768) {
+                sidebar.classList.toggle('mobile-open');
+                overlay.classList.toggle('active');
+            } else {
+                sidebar.classList.toggle('collapsed');
+            }
+        });
+
+        document.getElementById('sidebarOverlay').addEventListener('click', function() {
+            document.getElementById('sidebar').classList.remove('mobile-open');
+            this.classList.remove('active');
+        });
+
+        // Set active nav item
+        const currentPage = window.location.pathname.split('/').pop();
+        const navLinks = document.querySelectorAll('.sidebar-nav a');
+        navLinks.forEach(link => {
+            if (link.getAttribute('href') === currentPage) {
+                link.classList.add('active');
+            }
+        });
+
+        // Form functions
+        function showAddRecordForm() {
+            document.getElementById('formTitle').textContent = 'Add New Medical Record';
+            document.getElementById('recordForm').style.display = 'block';
+            document.getElementById('addRecordForm').reset();
+            document.getElementById('studentId').focus();
+        }
+
+        function hideRecordForm() {
+            document.getElementById('recordForm').style.display = 'none';
+            document.getElementById('addRecordForm').reset();
+        }
+
+        function focusSearch() {
+            document.getElementById('searchStudent').focus();
+        }
+
+        function clearFilters() {
+            document.getElementById('searchStudent').value = '';
+            document.getElementById('recordTypeFilter').value = '';
+            document.getElementById('dateFilter').value = '';
+            loadRecords();
+        }
+
+        function exportRecords() {
+            alert('Export functionality coming soon!');
+        }
+
+        function showRecentActivity() {
+            alert('Recent activity view coming soon!');
+        }
+
+        // Load records
+        function loadRecords() {
+            const container = document.getElementById('recordsContainer');
+            // This would typically fetch data from your backend
+            container.innerHTML = `
+                <div class="record-card">
+                    <div class="record-header">
+                        <h4>John Doe (STU001)</h4>
+                        <span class="record-date">2024-01-15</span>
+                    </div>
+                    <div class="record-type">Consultation</div>
+                    <div class="record-summary">
+                        <p><strong>Diagnosis:</strong> Common cold symptoms</p>
+                        <p><strong>Treatment:</strong> Rest and hydration recommended</p>
+                    </div>
+                    <div class="record-actions">
+                        <button class="btn-small" onclick="viewRecord(1)">View</button>
+                        <button class="btn-small" onclick="editRecord(1)">Edit</button>
+                    </div>
+                </div>
+                <div class="record-card">
+                    <div class="record-header">
+                        <h4>Jane Smith (STU002)</h4>
+                        <span class="record-date">2024-01-14</span>
+                    </div>
+                    <div class="record-type">Vaccination</div>
+                    <div class="record-summary">
+                        <p><strong>Diagnosis:</strong> Routine vaccination</p>
+                        <p><strong>Treatment:</strong> Flu vaccine administered</p>
+                    </div>
+                    <div class="record-actions">
+                        <button class="btn-small" onclick="viewRecord(2)">View</button>
+                        <button class="btn-small" onclick="editRecord(2)">Edit</button>
+                    </div>
+                </div>
+            `;
+            document.getElementById('totalRecords').textContent = '2';
+        }
+
+        // Load records on page load
+        loadRecords();
+    </script>
 </body>
 </html>

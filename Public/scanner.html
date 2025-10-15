@@ -5,25 +5,64 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>QR Scanner - Clinic Management System</title>
     <link rel="stylesheet" href="css/style.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
 </head>
 <body>
-    <header>
-        <nav>
-            <div class="nav-container">
-                <h1>Clinic Management System</h1>
-                <ul>
-                    <li><a href="student.html">Dashboard</a></li>
-                    <li><a href="book_appointment.html">Book Appointment</a></li>
-                    <li><a href="medical-records.html">Medical Records</a></li>
-                    <li><a href="profile.html">Profile</a></li>
-                    <li><a href="notifications.html">Notifications</a></li>
-                    <li><a href="#" id="logout">Logout</a></li>
-                </ul>
+    <!-- Top Header -->
+    <header class="top-header">
+        <div class="user-profile" id="userProfile">
+            <div class="user-info">
+                <span class="user-name" id="userName">Student User</span>
+                <span class="user-role">Student</span>
             </div>
-        </nav>
+            <div class="user-avatar">
+                <i class="fas fa-graduation-cap"></i>
+            </div>
+            <button class="dropdown-toggle" id="dropdownToggle">
+                <i class="fas fa-chevron-down"></i>
+            </button>
+            <div class="profile-dropdown" id="profileDropdown">
+                <a href="profile.html" class="dropdown-item">
+                    <i class="fas fa-user"></i> Profile
+                </a>
+                <a href="notifications.html" class="dropdown-item">
+                    <i class="fas fa-bell"></i> Notifications
+                </a>
+                <a href="#" class="dropdown-item" id="logout">
+                    <i class="fas fa-sign-out-alt"></i> Logout
+                </a>
+            </div>
+        </div>
     </header>
 
-    <main>
+    <!-- Sidebar Navigation -->
+    <nav class="sidebar" id="sidebar">
+        <div class="sidebar-header">
+            <h1>Clinic Management</h1>
+        </div>
+        <div class="sidebar-nav">
+            <ul>
+                <li><a href="student.html"><span class="nav-icon"><i class="fas fa-tachometer-alt"></i></span><span class="nav-text">Dashboard</span></a></li>
+                <li><a href="book_appointment.html"><span class="nav-icon"><i class="fas fa-calendar-plus"></i></span><span class="nav-text">Book Appointment</span></a></li>
+                <li><a href="appointments.html"><span class="nav-icon"><i class="fas fa-calendar-check"></i></span><span class="nav-text">My Appointments</span></a></li>
+                <li><a href="medical-records.html"><span class="nav-icon"><i class="fas fa-file-medical"></i></span><span class="nav-text">Medical Records</span></a></li>
+                <li><a href="profile.html"><span class="nav-icon"><i class="fas fa-user"></i></span><span class="nav-text">Profile</span></a></li>
+                <li><a href="notifications.html"><span class="nav-icon"><i class="fas fa-bell"></i></span><span class="nav-text">Notifications</span></a></li>
+                <li><a href="#" id="logout"><span class="nav-icon"><i class="fas fa-sign-out-alt"></i></span><span class="nav-text">Logout</span></a></li>
+            </ul>
+        </div>
+    </nav>
+
+    <!-- Sidebar Toggle Button -->
+    <button class="sidebar-toggle" id="sidebarToggle">
+        <i class="fas fa-bars"></i>
+    </button>
+
+    <!-- Mobile Overlay -->
+    <div class="sidebar-overlay" id="sidebarOverlay"></div>
+
+    <!-- Main Content -->
+    <main class="main-content">
         <div class="container">
             <h2>QR Code Scanner</h2>
             <div class="scanner-container">
@@ -54,5 +93,33 @@
     </footer>
 
     <script src="js/common.js"></script>
+    <script>
+        // Sidebar toggle functionality
+        document.getElementById('sidebarToggle').addEventListener('click', function() {
+            const sidebar = document.getElementById('sidebar');
+            const overlay = document.getElementById('sidebarOverlay');
+
+            if (window.innerWidth <= 768) {
+                sidebar.classList.toggle('mobile-open');
+                overlay.classList.toggle('active');
+            } else {
+                sidebar.classList.toggle('collapsed');
+            }
+        });
+
+        document.getElementById('sidebarOverlay').addEventListener('click', function() {
+            document.getElementById('sidebar').classList.remove('mobile-open');
+            this.classList.remove('active');
+        });
+
+        // Set active nav item
+        const currentPage = window.location.pathname.split('/').pop();
+        const navLinks = document.querySelectorAll('.sidebar-nav a');
+        navLinks.forEach(link => {
+            if (link.getAttribute('href') === currentPage) {
+                link.classList.add('active');
+            }
+        });
+    </script>
 </body>
 </html>

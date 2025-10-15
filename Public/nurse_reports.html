@@ -5,61 +5,330 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Nurse Reports - Clinic Management System</title>
     <link rel="stylesheet" href="css/style.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
 </head>
 <body>
-    <header>
-        <nav>
-            <div class="nav-container">
-                <h1>Clinic Management System</h1>
-                <ul>
-                    <li><a href="nurse_dashboard.html">Dashboard</a></li>
-                    <li><a href="nurse_appointments.html">Appointments</a></li>
-                    <li><a href="nurse_records.html">Records</a></li>
-                    <li><a href="nurse_profile.html">Profile</a></li>
-                    <li><a href="nurse_reports.html">Reports</a></li>
-                    <li><a href="nurse_scan.html">Scan QR</a></li>
-                    <li><a href="#" id="logout">Logout</a></li>
-                </ul>
-            </div>
-        </nav>
-    </header>
+    <!-- Sidebar Navigation -->
+    <nav class="sidebar" id="sidebar">
+        <div class="sidebar-header">
+            <h1>Clinic Management</h1>
+        </div>
+        <div class="sidebar-nav">
+            <ul>
+                <li><a href="nurse_dashboard.html"><span class="nav-icon"><i class="fas fa-tachometer-alt"></i></span><span class="nav-text">Dashboard</span></a></li>
+                <li><a href="nurse_appointments.html"><span class="nav-icon"><i class="fas fa-calendar-check"></i></span><span class="nav-text">Appointments</span></a></li>
+                <li><a href="nurse_records.html"><span class="nav-icon"><i class="fas fa-file-medical"></i></span><span class="nav-text">Medical Records</span></a></li>
+                <li><a href="nurse_availability.html"><span class="nav-icon"><i class="fas fa-clock"></i></span><span class="nav-text">Availability</span></a></li>
+                <li><a href="nurse_students.html"><span class="nav-icon"><i class="fas fa-users"></i></span><span class="nav-text">Students</span></a></li>
+                <li><a href="nurse_reports.html" class="active"><span class="nav-icon"><i class="fas fa-chart-bar"></i></span><span class="nav-text">Reports</span></a></li>
+                <li><a href="nurse_scan.html"><span class="nav-icon"><i class="fas fa-qrcode"></i></span><span class="nav-text">QR Scanner</span></a></li>
+                <li><a href="nurse_profile.html"><span class="nav-icon"><i class="fas fa-user"></i></span><span class="nav-text">Profile</span></a></li>
+                <li><a href="#" id="logout"><span class="nav-icon"><i class="fas fa-sign-out-alt"></i></span><span class="nav-text">Logout</span></a></li>
+            </ul>
+        </div>
+    </nav>
 
-    <main>
-        <div class="container">
-            <h2>Reports</h2>
+    <!-- Sidebar Toggle Button -->
+    <button class="sidebar-toggle" id="sidebarToggle">
+        <i class="fas fa-bars"></i>
+    </button>
+
+    <!-- Mobile Overlay -->
+    <div class="sidebar-overlay" id="sidebarOverlay"></div>
+
+    <!-- Main Content -->
+    <main class="main-content">
+        <div class="dashboard">
+            <div class="dashboard-header">
+                <h2>Reports & Analytics</h2>
+                <p class="dashboard-subtitle">Generate comprehensive reports and view clinic performance metrics</p>
+            </div>
+
+            <!-- Quick Stats -->
+            <div class="dashboard-stats">
+                <div class="stat-card">
+                    <div class="stat-icon"><i class="fas fa-calendar-week"></i></div>
+                    <div class="stat-content">
+                        <h3>This Week</h3>
+                        <p id="weeklyAppointments">48</p>
+                    </div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-icon"><i class="fas fa-users"></i></div>
+                    <div class="stat-content">
+                        <h3>Active Patients</h3>
+                        <p id="activePatients">156</p>
+                    </div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-icon"><i class="fas fa-clock"></i></div>
+                    <div class="stat-content">
+                        <h3>Avg. Wait Time</h3>
+                        <p id="avgWaitTime">12 min</p>
+                    </div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-icon"><i class="fas fa-check-circle"></i></div>
+                    <div class="stat-content">
+                        <h3>Completion Rate</h3>
+                        <p id="completionRate">94%</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Report Categories -->
             <div class="reports-grid">
                 <div class="report-card">
+                    <div class="card-icon"><i class="fas fa-calendar-day"></i></div>
                     <h3>Daily Appointments</h3>
-                    <p>View appointments for today</p>
-                    <button class="btn-secondary" onclick="generateDailyReport()">Generate Report</button>
+                    <p>View detailed appointments for today with patient information and status</p>
+                    <div class="report-actions">
+                        <button class="btn-primary" onclick="generateDailyReport()">Generate Report</button>
+                        <button class="btn-secondary" onclick="previewDailyReport()">Preview</button>
+                    </div>
                 </div>
                 <div class="report-card">
+                    <div class="card-icon"><i class="fas fa-calendar-week"></i></div>
                     <h3>Weekly Summary</h3>
-                    <p>Weekly appointment summary</p>
-                    <button class="btn-secondary" onclick="generateWeeklyReport()">Generate Report</button>
+                    <p>Comprehensive weekly appointment summary with trends and statistics</p>
+                    <div class="report-actions">
+                        <button class="btn-primary" onclick="generateWeeklyReport()">Generate Report</button>
+                        <button class="btn-secondary" onclick="previewWeeklyReport()">Preview</button>
+                    </div>
                 </div>
                 <div class="report-card">
+                    <div class="card-icon"><i class="fas fa-file-medical"></i></div>
                     <h3>Student Health Records</h3>
-                    <p>Health records summary</p>
-                    <button class="btn-secondary" onclick="generateHealthReport()">Generate Report</button>
+                    <p>Health records summary with common conditions and treatment patterns</p>
+                    <div class="report-actions">
+                        <button class="btn-primary" onclick="generateHealthReport()">Generate Report</button>
+                        <button class="btn-secondary" onclick="previewHealthReport()">Preview</button>
+                    </div>
+                </div>
+                <div class="report-card">
+                    <div class="card-icon"><i class="fas fa-chart-line"></i></div>
+                    <h3>Performance Metrics</h3>
+                    <p>Clinic performance indicators including wait times and patient satisfaction</p>
+                    <div class="report-actions">
+                        <button class="btn-primary" onclick="generatePerformanceReport()">Generate Report</button>
+                        <button class="btn-secondary" onclick="previewPerformanceReport()">Preview</button>
+                    </div>
+                </div>
+                <div class="report-card">
+                    <div class="card-icon"><i class="fas fa-syringe"></i></div>
+                    <h3>Vaccination Report</h3>
+                    <p>Vaccination records and coverage statistics for the student population</p>
+                    <div class="report-actions">
+                        <button class="btn-primary" onclick="generateVaccinationReport()">Generate Report</button>
+                        <button class="btn-secondary" onclick="previewVaccinationReport()">Preview</button>
+                    </div>
+                </div>
+                <div class="report-card">
+                    <div class="card-icon"><i class="fas fa-exclamation-triangle"></i></div>
+                    <h3>Emergency Cases</h3>
+                    <p>Summary of emergency visits and critical health incidents</p>
+                    <div class="report-actions">
+                        <button class="btn-primary" onclick="generateEmergencyReport()">Generate Report</button>
+                        <button class="btn-secondary" onclick="previewEmergencyReport()">Preview</button>
+                    </div>
                 </div>
             </div>
 
+            <!-- Custom Report Builder -->
+            <div class="form-card">
+                <div class="form-header">
+                    <h3>Custom Report Builder</h3>
+                    <p>Create customized reports with specific date ranges and filters</p>
+                </div>
+                <form id="customReportForm">
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="reportType">Report Type</label>
+                            <select id="reportType" name="reportType" required>
+                                <option value="">Select Report Type</option>
+                                <option value="appointments">Appointments</option>
+                                <option value="records">Medical Records</option>
+                                <option value="patients">Patient Demographics</option>
+                                <option value="performance">Performance Metrics</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label for="dateRange">Date Range</label>
+                            <select id="dateRange" name="dateRange" required>
+                                <option value="">Select Range</option>
+                                <option value="today">Today</option>
+                                <option value="week">This Week</option>
+                                <option value="month">This Month</option>
+                                <option value="quarter">This Quarter</option>
+                                <option value="year">This Year</option>
+                                <option value="custom">Custom Range</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="form-row" id="customDateRange" style="display: none;">
+                        <div class="form-group">
+                            <label for="startDate">Start Date</label>
+                            <input type="date" id="startDate" name="startDate">
+                        </div>
+                        <div class="form-group">
+                            <label for="endDate">End Date</label>
+                            <input type="date" id="endDate" name="endDate">
+                        </div>
+                    </div>
+                    <div class="form-actions">
+                        <button type="submit" class="btn-primary">Generate Custom Report</button>
+                        <button type="button" class="btn-secondary" onclick="resetCustomForm()">Reset</button>
+                    </div>
+                </form>
+            </div>
+
+            <!-- Report Output -->
             <div class="report-output" id="reportOutput" style="display: none;">
-                <h3>Report Results</h3>
+                <div class="report-header">
+                    <h3 id="reportTitle">Report Results</h3>
+                    <div class="report-actions">
+                        <button class="btn-primary" onclick="printReport()"><i class="fas fa-print"></i> Print</button>
+                        <button class="btn-primary" onclick="exportReport()"><i class="fas fa-download"></i> Export PDF</button>
+                        <button class="btn-secondary" onclick="emailReport()"><i class="fas fa-envelope"></i> Email</button>
+                        <button class="btn-secondary" onclick="closeReport()"><i class="fas fa-times"></i> Close</button>
+                    </div>
+                </div>
                 <div id="reportContent">
                     <!-- Report content will be displayed here -->
                 </div>
-                <button class="btn-primary" onclick="printReport()">Print Report</button>
-                <button class="btn-secondary" onclick="exportReport()">Export PDF</button>
             </div>
         </div>
     </main>
 
-    <footer>
-        <p>&copy; 2024 Clinic Management System. All rights reserved.</p>
-    </footer>
-
     <script src="js/common.js"></script>
+    <script>
+        // Sidebar toggle functionality
+        document.getElementById('sidebarToggle').addEventListener('click', function() {
+            const sidebar = document.getElementById('sidebar');
+            const overlay = document.getElementById('sidebarOverlay');
+
+            if (window.innerWidth <= 768) {
+                sidebar.classList.toggle('mobile-open');
+                overlay.classList.toggle('active');
+            } else {
+                sidebar.classList.toggle('collapsed');
+            }
+        });
+
+        document.getElementById('sidebarOverlay').addEventListener('click', function() {
+            document.getElementById('sidebar').classList.remove('mobile-open');
+            this.classList.remove('active');
+        });
+
+        // Set active nav item
+        const currentPage = window.location.pathname.split('/').pop();
+        const navLinks = document.querySelectorAll('.sidebar-nav a');
+        navLinks.forEach(link => {
+            if (link.getAttribute('href') === currentPage) {
+                link.classList.add('active');
+            }
+        });
+
+        // Date range toggle
+        document.getElementById('dateRange').addEventListener('change', function() {
+            const customRange = document.getElementById('customDateRange');
+            if (this.value === 'custom') {
+                customRange.style.display = 'flex';
+            } else {
+                customRange.style.display = 'none';
+            }
+        });
+
+        // Report generation functions
+        function generateDailyReport() {
+            showReport('Daily Appointments Report', 'Generating daily appointments report...');
+        }
+
+        function generateWeeklyReport() {
+            showReport('Weekly Summary Report', 'Generating weekly summary report...');
+        }
+
+        function generateHealthReport() {
+            showReport('Student Health Records Report', 'Generating health records report...');
+        }
+
+        function generatePerformanceReport() {
+            showReport('Performance Metrics Report', 'Generating performance metrics report...');
+        }
+
+        function generateVaccinationReport() {
+            showReport('Vaccination Report', 'Generating vaccination report...');
+        }
+
+        function generateEmergencyReport() {
+            showReport('Emergency Cases Report', 'Generating emergency cases report...');
+        }
+
+        // Preview functions
+        function previewDailyReport() {
+            showReport('Daily Appointments Preview', 'Preview of today\'s appointments...');
+        }
+
+        function previewWeeklyReport() {
+            showReport('Weekly Summary Preview', 'Preview of weekly summary...');
+        }
+
+        function previewHealthReport() {
+            showReport('Health Records Preview', 'Preview of health records...');
+        }
+
+        function previewPerformanceReport() {
+            showReport('Performance Preview', 'Preview of performance metrics...');
+        }
+
+        function previewVaccinationReport() {
+            showReport('Vaccination Preview', 'Preview of vaccination data...');
+        }
+
+        function previewEmergencyReport() {
+            showReport('Emergency Preview', 'Preview of emergency cases...');
+        }
+
+        // Utility functions
+        function showReport(title, content) {
+            document.getElementById('reportTitle').textContent = title;
+            document.getElementById('reportContent').innerHTML = `<p>${content}</p>`;
+            document.getElementById('reportOutput').style.display = 'block';
+            document.getElementById('reportOutput').scrollIntoView({ behavior: 'smooth' });
+        }
+
+        function closeReport() {
+            document.getElementById('reportOutput').style.display = 'none';
+        }
+
+        function printReport() {
+            window.print();
+        }
+
+        function exportReport() {
+            alert('PDF export functionality coming soon!');
+        }
+
+        function emailReport() {
+            alert('Email functionality coming soon!');
+        }
+
+        function resetCustomForm() {
+            document.getElementById('customReportForm').reset();
+            document.getElementById('customDateRange').style.display = 'none';
+        }
+
+        // Load initial stats
+        function loadReportStats() {
+            // This would typically fetch data from your backend
+            document.getElementById('weeklyAppointments').textContent = '48';
+            document.getElementById('activePatients').textContent = '156';
+            document.getElementById('avgWaitTime').textContent = '12 min';
+            document.getElementById('completionRate').textContent = '94%';
+        }
+
+        // Load stats on page load
+        loadReportStats();
+    </script>
 </body>
 </html>

@@ -5,60 +5,211 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Nurse Profile - Clinic Management System</title>
     <link rel="stylesheet" href="css/style.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
 </head>
 <body>
-    <header>
-        <nav>
-            <div class="nav-container">
-                <h1>Clinic Management System</h1>
-                <ul>
-                    <li><a href="nurse_dashboard.html">Dashboard</a></li>
-                    <li><a href="nurse_appointments.html">Appointments</a></li>
-                    <li><a href="nurse_records.html">Records</a></li>
-                    <li><a href="nurse_profile.html">Profile</a></li>
-                    <li><a href="nurse_reports.html">Reports</a></li>
-                    <li><a href="nurse_scan.html">Scan QR</a></li>
-                    <li><a href="#" id="logout">Logout</a></li>
-                </ul>
-            </div>
-        </nav>
-    </header>
+    <!-- Sidebar Navigation -->
+    <nav class="sidebar" id="sidebar">
+        <div class="sidebar-header">
+            <h1>Clinic Management</h1>
+        </div>
+        <div class="sidebar-nav">
+            <ul>
+                <li><a href="nurse_dashboard.html"><span class="nav-icon"><i class="fas fa-tachometer-alt"></i></span><span class="nav-text">Dashboard</span></a></li>
+                <li><a href="nurse_appointments.html"><span class="nav-icon"><i class="fas fa-calendar-check"></i></span><span class="nav-text">Appointments</span></a></li>
+                <li><a href="nurse_records.html"><span class="nav-icon"><i class="fas fa-file-medical"></i></span><span class="nav-text">Medical Records</span></a></li>
+                <li><a href="nurse_availability.html"><span class="nav-icon"><i class="fas fa-clock"></i></span><span class="nav-text">Availability</span></a></li>
+                <li><a href="nurse_students.html"><span class="nav-icon"><i class="fas fa-users"></i></span><span class="nav-text">Students</span></a></li>
+                <li><a href="nurse_reports.html"><span class="nav-icon"><i class="fas fa-chart-bar"></i></span><span class="nav-text">Reports</span></a></li>
+                <li><a href="nurse_scan.html"><span class="nav-icon"><i class="fas fa-qrcode"></i></span><span class="nav-text">QR Scanner</span></a></li>
+                <li><a href="nurse_profile.html" class="active"><span class="nav-icon"><i class="fas fa-user"></i></span><span class="nav-text">Profile</span></a></li>
+                <li><a href="#" id="logout"><span class="nav-icon"><i class="fas fa-sign-out-alt"></i></span><span class="nav-text">Logout</span></a></li>
+            </ul>
+        </div>
+    </nav>
 
-    <main>
-        <div class="container">
-            <h2>My Profile</h2>
+    <!-- Sidebar Toggle Button -->
+    <button class="sidebar-toggle" id="sidebarToggle">
+        <i class="fas fa-bars"></i>
+    </button>
+
+    <!-- Mobile Overlay -->
+    <div class="sidebar-overlay" id="sidebarOverlay"></div>
+
+    <!-- Main Content -->
+    <main class="main-content">
+        <div class="dashboard">
+            <div class="dashboard-header">
+                <h2>My Profile</h2>
+                <p class="dashboard-subtitle">Manage your personal information and account settings</p>
+            </div>
+
+            <!-- Profile Overview Cards -->
+            <div class="dashboard-grid">
+                <div class="dashboard-card profile-summary">
+                    <div class="profile-avatar">
+                        <i class="fas fa-user-circle"></i>
+                    </div>
+                    <div class="profile-info">
+                        <h3 id="profileName">Nurse Name</h3>
+                        <p id="profileRole">Registered Nurse</p>
+                        <p id="profileEmail">nurse@clinic.edu</p>
+                    </div>
+                </div>
+                <div class="dashboard-card">
+                    <div class="card-icon"><i class="fas fa-calendar-check"></i></div>
+                    <h3>Appointments Today</h3>
+                    <p id="todayAppointments">12</p>
+                    <small>Scheduled appointments</small>
+                </div>
+                <div class="dashboard-card">
+                    <div class="card-icon"><i class="fas fa-users"></i></div>
+                    <h3>Total Patients</h3>
+                    <p id="totalPatients">245</p>
+                    <small>Students served</small>
+                </div>
+                <div class="dashboard-card">
+                    <div class="card-icon"><i class="fas fa-award"></i></div>
+                    <h3>Experience</h3>
+                    <p id="experienceYears">5</p>
+                    <small>Years of service</small>
+                </div>
+            </div>
+
+            <!-- Profile Form -->
             <div class="profile-form">
-                <form id="profileForm">
-                    <div class="form-group">
-                        <label for="firstName">First Name</label>
-                        <input type="text" id="firstName" name="firstName" required>
+                <div class="form-card">
+                    <div class="form-header">
+                        <h3>Personal Information</h3>
+                        <p>Update your contact details and professional information</p>
                     </div>
-                    <div class="form-group">
-                        <label for="lastName">Last Name</label>
-                        <input type="text" id="lastName" name="lastName" required>
+                    <form id="profileForm">
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label for="firstName">First Name</label>
+                                <input type="text" id="firstName" name="firstName" required>
+                            </div>
+                            <div class="form-group">
+                                <label for="lastName">Last Name</label>
+                                <input type="text" id="lastName" name="lastName" required>
+                            </div>
+                        </div>
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label for="email">Email Address</label>
+                                <input type="email" id="email" name="email" required>
+                            </div>
+                            <div class="form-group">
+                                <label for="phone">Phone Number</label>
+                                <input type="tel" id="phone" name="phone">
+                            </div>
+                        </div>
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label for="specialization">Specialization</label>
+                                <input type="text" id="specialization" name="specialization" placeholder="e.g., General Practice, Pediatrics">
+                            </div>
+                            <div class="form-group">
+                                <label for="licenseNumber">License Number</label>
+                                <input type="text" id="licenseNumber" name="licenseNumber">
+                            </div>
+                        </div>
+                        <div class="form-group">
+                            <label for="bio">Professional Bio</label>
+                            <textarea id="bio" name="bio" rows="4" placeholder="Brief description of your experience and approach to patient care"></textarea>
+                        </div>
+                        <div class="form-actions">
+                            <button type="submit" class="btn-primary">Update Profile</button>
+                            <button type="button" class="btn-secondary" onclick="resetForm()">Reset Changes</button>
+                        </div>
+                    </form>
+                </div>
+
+                <!-- Security Settings -->
+                <div class="form-card">
+                    <div class="form-header">
+                        <h3>Security Settings</h3>
+                        <p>Manage your account security and password</p>
                     </div>
-                    <div class="form-group">
-                        <label for="email">Email</label>
-                        <input type="email" id="email" name="email" required>
-                    </div>
-                    <div class="form-group">
-                        <label for="phone">Phone</label>
-                        <input type="tel" id="phone" name="phone">
-                    </div>
-                    <div class="form-group">
-                        <label for="specialization">Specialization</label>
-                        <input type="text" id="specialization" name="specialization">
-                    </div>
-                    <button type="submit" class="btn-primary">Update Profile</button>
-                </form>
+                    <form id="securityForm">
+                        <div class="form-group">
+                            <label for="currentPassword">Current Password</label>
+                            <input type="password" id="currentPassword" name="currentPassword" required>
+                        </div>
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label for="newPassword">New Password</label>
+                                <input type="password" id="newPassword" name="newPassword" required>
+                            </div>
+                            <div class="form-group">
+                                <label for="confirmPassword">Confirm New Password</label>
+                                <input type="password" id="confirmPassword" name="confirmPassword" required>
+                            </div>
+                        </div>
+                        <div class="form-actions">
+                            <button type="submit" class="btn-primary">Change Password</button>
+                        </div>
+                    </form>
+                </div>
             </div>
         </div>
     </main>
 
-    <footer>
-        <p>&copy; 2024 Clinic Management System. All rights reserved.</p>
-    </footer>
-
     <script src="js/common.js"></script>
+    <script>
+        // Sidebar toggle functionality
+        document.getElementById('sidebarToggle').addEventListener('click', function() {
+            const sidebar = document.getElementById('sidebar');
+            const overlay = document.getElementById('sidebarOverlay');
+
+            if (window.innerWidth <= 768) {
+                sidebar.classList.toggle('mobile-open');
+                overlay.classList.toggle('active');
+            } else {
+                sidebar.classList.toggle('collapsed');
+            }
+        });
+
+        document.getElementById('sidebarOverlay').addEventListener('click', function() {
+            document.getElementById('sidebar').classList.remove('mobile-open');
+            this.classList.remove('active');
+        });
+
+        // Set active nav item
+        const currentPage = window.location.pathname.split('/').pop();
+        const navLinks = document.querySelectorAll('.sidebar-nav a');
+        navLinks.forEach(link => {
+            if (link.getAttribute('href') === currentPage) {
+                link.classList.add('active');
+            }
+        });
+
+        // Form functions
+        function resetForm() {
+            if (confirm('Are you sure you want to reset all changes?')) {
+                document.getElementById('profileForm').reset();
+            }
+        }
+
+        // Load profile data
+        function loadProfileData() {
+            // This would typically fetch data from your backend
+            document.getElementById('profileName').textContent = 'Sarah Johnson';
+            document.getElementById('profileRole').textContent = 'Registered Nurse';
+            document.getElementById('profileEmail').textContent = 'sarah.johnson@clinic.edu';
+
+            // Populate form fields
+            document.getElementById('firstName').value = 'Sarah';
+            document.getElementById('lastName').value = 'Johnson';
+            document.getElementById('email').value = 'sarah.johnson@clinic.edu';
+            document.getElementById('phone').value = '+1-555-0123';
+            document.getElementById('specialization').value = 'General Practice';
+            document.getElementById('licenseNumber').value = 'RN123456';
+            document.getElementById('bio').value = 'Experienced registered nurse with 5 years in university health services.';
+        }
+
+        // Load profile data on page load
+        loadProfileData();
+    </script>
 </body>
 </html>

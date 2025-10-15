@@ -5,56 +5,351 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Nurse Students - Clinic Management System</title>
     <link rel="stylesheet" href="css/style.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
 </head>
 <body>
-    <header>
-        <nav>
-            <div class="nav-container">
-                <h1>Clinic Management System</h1>
-                <ul>
-                    <li><a href="nurse_dashboard.html">Dashboard</a></li>
-                    <li><a href="nurse_appointments.html">Appointments</a></li>
-                    <li><a href="nurse_records.html">Records</a></li>
-                    <li><a href="nurse_profile.html">Profile</a></li>
-                    <li><a href="nurse_reports.html">Reports</a></li>
-                    <li><a href="nurse_scan.html">Scan QR</a></li>
-                    <li><a href="#" id="logout">Logout</a></li>
-                </ul>
-            </div>
-        </nav>
-    </header>
+    <!-- Sidebar Navigation -->
+    <nav class="sidebar" id="sidebar">
+        <div class="sidebar-header">
+            <h1>Clinic Management</h1>
+        </div>
+        <div class="sidebar-nav">
+            <ul>
+                <li><a href="nurse_dashboard.html"><span class="nav-icon"><i class="fas fa-tachometer-alt"></i></span><span class="nav-text">Dashboard</span></a></li>
+                <li><a href="nurse_appointments.html"><span class="nav-icon"><i class="fas fa-calendar-check"></i></span><span class="nav-text">Appointments</span></a></li>
+                <li><a href="nurse_records.html"><span class="nav-icon"><i class="fas fa-file-medical"></i></span><span class="nav-text">Medical Records</span></a></li>
+                <li><a href="nurse_availability.html"><span class="nav-icon"><i class="fas fa-clock"></i></span><span class="nav-text">Availability</span></a></li>
+                <li><a href="nurse_students.html" class="active"><span class="nav-icon"><i class="fas fa-users"></i></span><span class="nav-text">Students</span></a></li>
+                <li><a href="nurse_reports.html"><span class="nav-icon"><i class="fas fa-chart-bar"></i></span><span class="nav-text">Reports</span></a></li>
+                <li><a href="nurse_scan.html"><span class="nav-icon"><i class="fas fa-qrcode"></i></span><span class="nav-text">QR Scanner</span></a></li>
+                <li><a href="nurse_profile.html"><span class="nav-icon"><i class="fas fa-user"></i></span><span class="nav-text">Profile</span></a></li>
+                <li><a href="#" id="logout"><span class="nav-icon"><i class="fas fa-sign-out-alt"></i></span><span class="nav-text">Logout</span></a></li>
+            </ul>
+        </div>
+    </nav>
 
-    <main>
-        <div class="container">
-            <h2>Students</h2>
+    <!-- Sidebar Toggle Button -->
+    <button class="sidebar-toggle" id="sidebarToggle">
+        <i class="fas fa-bars"></i>
+    </button>
+
+    <!-- Mobile Overlay -->
+    <div class="sidebar-overlay" id="sidebarOverlay"></div>
+
+    <!-- Main Content -->
+    <main class="main-content">
+        <div class="dashboard">
+            <div class="dashboard-header">
+                <h2>Student Management</h2>
+                <p class="dashboard-subtitle">Manage student information and healthcare records</p>
+            </div>
+
+            <!-- Quick Stats -->
+            <div class="dashboard-stats">
+                <div class="stat-card">
+                    <div class="stat-icon"><i class="fas fa-users"></i></div>
+                    <div class="stat-content">
+                        <h3>Total Students</h3>
+                        <p id="totalStudents">245</p>
+                    </div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-icon"><i class="fas fa-user-check"></i></div>
+                    <div class="stat-content">
+                        <h3>Active This Month</h3>
+                        <p id="activeStudents">189</p>
+                    </div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-icon"><i class="fas fa-calendar-alt"></i></div>
+                    <div class="stat-content">
+                        <h3>Appointments Today</h3>
+                        <p id="todayAppointments">12</p>
+                    </div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-icon"><i class="fas fa-notes-medical"></i></div>
+                    <div class="stat-content">
+                        <h3>Records Updated</h3>
+                        <p id="updatedRecords">8</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Search and Filters -->
             <div class="search-form">
-                <input type="text" id="searchStudent" placeholder="Search students...">
-                <button id="searchBtn" class="btn-secondary">Search</button>
+                <div class="search-row">
+                    <div class="search-input-group">
+                        <i class="fas fa-search search-icon"></i>
+                        <input type="text" id="searchStudent" placeholder="Search by name, ID, email, or program...">
+                    </div>
+                    <div class="filter-group">
+                        <select id="programFilter" class="filter-select">
+                            <option value="">All Programs</option>
+                            <option value="cs">Computer Science</option>
+                            <option value="engineering">Engineering</option>
+                            <option value="business">Business</option>
+                            <option value="arts">Arts & Sciences</option>
+                            <option value="medicine">Medicine</option>
+                        </select>
+                        <select id="statusFilter" class="filter-select">
+                            <option value="">All Status</option>
+                            <option value="active">Active</option>
+                            <option value="inactive">Inactive</option>
+                            <option value="graduated">Graduated</option>
+                        </select>
+                        <button id="searchBtn" class="btn-primary">Search</button>
+                        <button id="clearBtn" class="btn-secondary" onclick="clearFilters()">Clear</button>
+                    </div>
+                </div>
             </div>
 
+            <!-- Students List -->
             <div class="students-list">
-                <table id="studentsTable">
-                    <thead>
-                        <tr>
-                            <th>Name</th>
-                            <th>Email</th>
-                            <th>Student ID</th>
-                            <th>Last Visit</th>
-                            <th>Actions</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        <!-- Students will be loaded here -->
-                    </tbody>
-                </table>
+                <div class="list-header">
+                    <h3>Student Directory</h3>
+                    <div class="list-stats">
+                        <span id="displayedStudents">0</span> students found
+                    </div>
+                </div>
+
+                <!-- Students Grid View -->
+                <div id="studentsGrid" class="students-grid">
+                    <!-- Students will be loaded here -->
+                </div>
+
+                <!-- Students Table View (Alternative) -->
+                <div id="studentsTableView" class="students-table-container" style="display: none;">
+                    <table id="studentsTable">
+                        <thead>
+                            <tr>
+                                <th>Name</th>
+                                <th>Student ID</th>
+                                <th>Program</th>
+                                <th>Email</th>
+                                <th>Last Visit</th>
+                                <th>Status</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <!-- Students will be loaded here -->
+                        </tbody>
+                    </table>
+                </div>
+
+                <!-- Pagination -->
+                <div class="pagination" id="pagination">
+                    <button class="btn-secondary" id="prevPage" disabled>
+                        <i class="fas fa-chevron-left"></i> Previous
+                    </button>
+                    <span id="pageInfo">Page 1 of 1</span>
+                    <button class="btn-secondary" id="nextPage" disabled>
+                        Next <i class="fas fa-chevron-right"></i>
+                    </button>
+                </div>
+            </div>
+
+            <!-- Student Detail Modal (would be implemented with JavaScript) -->
+            <div id="studentModal" class="modal" style="display: none;">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h3>Student Details</h3>
+                        <button class="btn-close" onclick="closeStudentModal()">
+                            <i class="fas fa-times"></i>
+                        </button>
+                    </div>
+                    <div id="studentDetailContent">
+                        <!-- Student details will be loaded here -->
+                    </div>
+                </div>
             </div>
         </div>
     </main>
 
-    <footer>
-        <p>&copy; 2024 Clinic Management System. All rights reserved.</p>
-    </footer>
-
     <script src="js/common.js"></script>
+    <script>
+        // Sidebar toggle functionality
+        document.getElementById('sidebarToggle').addEventListener('click', function() {
+            const sidebar = document.getElementById('sidebar');
+            const overlay = document.getElementById('sidebarOverlay');
+
+            if (window.innerWidth <= 768) {
+                sidebar.classList.toggle('mobile-open');
+                overlay.classList.toggle('active');
+            } else {
+                sidebar.classList.toggle('collapsed');
+            }
+        });
+
+        document.getElementById('sidebarOverlay').addEventListener('click', function() {
+            document.getElementById('sidebar').classList.remove('mobile-open');
+            this.classList.remove('active');
+        });
+
+        // Set active nav item
+        const currentPage = window.location.pathname.split('/').pop();
+        const navLinks = document.querySelectorAll('.sidebar-nav a');
+        navLinks.forEach(link => {
+            if (link.getAttribute('href') === currentPage) {
+                link.classList.add('active');
+            }
+        });
+
+        // Variables
+        let currentPageNum = 1;
+        let totalPages = 1;
+        let studentsData = [];
+
+        // Load students on page load
+        document.addEventListener('DOMContentLoaded', function() {
+            loadStudents();
+            loadStats();
+        });
+
+        // Load student statistics
+        function loadStats() {
+            // This would typically fetch data from your backend
+            document.getElementById('totalStudents').textContent = '245';
+            document.getElementById('activeStudents').textContent = '189';
+            document.getElementById('todayAppointments').textContent = '12';
+            document.getElementById('updatedRecords').textContent = '8';
+        }
+
+        // Load students
+        function loadStudents() {
+            const grid = document.getElementById('studentsGrid');
+            // This would typically fetch data from your backend
+            const students = [
+                {
+                    id: 'STU001',
+                    name: 'John Doe',
+                    email: 'john.doe@university.edu',
+                    program: 'Computer Science',
+                    lastVisit: '2024-01-15',
+                    status: 'active',
+                    avatar: null
+                },
+                {
+                    id: 'STU002',
+                    name: 'Jane Smith',
+                    email: 'jane.smith@university.edu',
+                    program: 'Engineering',
+                    lastVisit: '2024-01-14',
+                    status: 'active',
+                    avatar: null
+                },
+                {
+                    id: 'STU003',
+                    name: 'Mike Johnson',
+                    email: 'mike.johnson@university.edu',
+                    program: 'Business',
+                    lastVisit: '2024-01-10',
+                    status: 'active',
+                    avatar: null
+                }
+            ];
+
+            studentsData = students;
+            displayStudents(students);
+        }
+
+        // Display students in grid
+        function displayStudents(students) {
+            const grid = document.getElementById('studentsGrid');
+            grid.innerHTML = '';
+
+            students.forEach(student => {
+                const studentCard = document.createElement('div');
+                studentCard.className = 'student-card';
+                studentCard.innerHTML = `
+                    <div class="student-avatar">
+                        <i class="fas fa-user-circle"></i>
+                    </div>
+                    <div class="student-info">
+                        <h4>${student.name}</h4>
+                        <p class="student-id">${student.id}</p>
+                        <p class="student-program">${student.program}</p>
+                        <p class="student-email">${student.email}</p>
+                        <div class="student-meta">
+                            <span class="last-visit">Last visit: ${formatDate(student.lastVisit)}</span>
+                            <span class="status-badge ${student.status}">${capitalize(student.status)}</span>
+                        </div>
+                    </div>
+                    <div class="student-actions">
+                        <button class="btn-small" onclick="viewStudent('${student.id}')">
+                            <i class="fas fa-eye"></i> View
+                        </button>
+                        <button class="btn-small" onclick="editStudent('${student.id}')">
+                            <i class="fas fa-edit"></i> Edit
+                        </button>
+                        <button class="btn-small" onclick="viewRecords('${student.id}')">
+                            <i class="fas fa-file-medical"></i> Records
+                        </button>
+                    </div>
+                `;
+                grid.appendChild(studentCard);
+            });
+
+            document.getElementById('displayedStudents').textContent = students.length;
+        }
+
+        // Search functionality
+        document.getElementById('searchBtn').addEventListener('click', function() {
+            const searchTerm = document.getElementById('searchStudent').value.toLowerCase();
+            const programFilter = document.getElementById('programFilter').value;
+            const statusFilter = document.getElementById('statusFilter').value;
+
+            let filteredStudents = studentsData.filter(student => {
+                const matchesSearch = student.name.toLowerCase().includes(searchTerm) ||
+                                    student.id.toLowerCase().includes(searchTerm) ||
+                                    student.email.toLowerCase().includes(searchTerm);
+                const matchesProgram = !programFilter || student.program.toLowerCase().includes(programFilter);
+                const matchesStatus = !statusFilter || student.status === statusFilter;
+
+                return matchesSearch && matchesProgram && matchesStatus;
+            });
+
+            displayStudents(filteredStudents);
+        });
+
+        // Clear filters
+        function clearFilters() {
+            document.getElementById('searchStudent').value = '';
+            document.getElementById('programFilter').value = '';
+            document.getElementById('statusFilter').value = '';
+            displayStudents(studentsData);
+        }
+
+        // Student action functions
+        function viewStudent(studentId) {
+            // Implement view student details
+            alert(`Viewing details for student ${studentId}`);
+        }
+
+        function editStudent(studentId) {
+            // Implement edit student
+            alert(`Editing student ${studentId}`);
+        }
+
+        function viewRecords(studentId) {
+            // Redirect to medical records page with student filter
+            window.location.href = `nurse_records.html?student=${studentId}`;
+        }
+
+        function closeStudentModal() {
+            document.getElementById('studentModal').style.display = 'none';
+        }
+
+        // Utility functions
+        function formatDate(dateString) {
+            const date = new Date(dateString);
+            return date.toLocaleDateString();
+        }
+
+        function capitalize(str) {
+            return str.charAt(0).toUpperCase() + str.slice(1);
+        }
+    </script>
 </body>
 </html>

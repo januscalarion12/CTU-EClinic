@@ -5,59 +5,392 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>QR Scanner - Clinic Management System</title>
     <link rel="stylesheet" href="css/style.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
 </head>
 <body>
-    <header>
-        <nav>
-            <div class="nav-container">
-                <h1>Clinic Management System</h1>
-                <ul>
-                    <li><a href="nurse_dashboard.html">Dashboard</a></li>
-                    <li><a href="nurse_appointments.html">Appointments</a></li>
-                    <li><a href="nurse_records.html">Records</a></li>
-                    <li><a href="nurse_profile.html">Profile</a></li>
-                    <li><a href="nurse_reports.html">Reports</a></li>
-                    <li><a href="nurse_scan.html">Scan QR</a></li>
-                    <li><a href="#" id="logout">Logout</a></li>
-                </ul>
-            </div>
-        </nav>
-    </header>
+    <!-- Sidebar Navigation -->
+    <nav class="sidebar" id="sidebar">
+        <div class="sidebar-header">
+            <h1>Clinic Management</h1>
+        </div>
+        <div class="sidebar-nav">
+            <ul>
+                <li><a href="nurse_dashboard.html"><span class="nav-icon"><i class="fas fa-tachometer-alt"></i></span><span class="nav-text">Dashboard</span></a></li>
+                <li><a href="nurse_appointments.html"><span class="nav-icon"><i class="fas fa-calendar-check"></i></span><span class="nav-text">Appointments</span></a></li>
+                <li><a href="nurse_records.html"><span class="nav-icon"><i class="fas fa-file-medical"></i></span><span class="nav-text">Medical Records</span></a></li>
+                <li><a href="nurse_availability.html"><span class="nav-icon"><i class="fas fa-clock"></i></span><span class="nav-text">Availability</span></a></li>
+                <li><a href="nurse_students.html"><span class="nav-icon"><i class="fas fa-users"></i></span><span class="nav-text">Students</span></a></li>
+                <li><a href="nurse_reports.html"><span class="nav-icon"><i class="fas fa-chart-bar"></i></span><span class="nav-text">Reports</span></a></li>
+                <li><a href="nurse_scan.html" class="active"><span class="nav-icon"><i class="fas fa-qrcode"></i></span><span class="nav-text">QR Scanner</span></a></li>
+                <li><a href="nurse_profile.html"><span class="nav-icon"><i class="fas fa-user"></i></span><span class="nav-text">Profile</span></a></li>
+                <li><a href="#" id="logout"><span class="nav-icon"><i class="fas fa-sign-out-alt"></i></span><span class="nav-text">Logout</span></a></li>
+            </ul>
+        </div>
+    </nav>
 
-    <main>
-        <div class="container">
-            <h2>QR Code Scanner</h2>
+    <!-- Sidebar Toggle Button -->
+    <button class="sidebar-toggle" id="sidebarToggle">
+        <i class="fas fa-bars"></i>
+    </button>
+
+    <!-- Mobile Overlay -->
+    <div class="sidebar-overlay" id="sidebarOverlay"></div>
+
+    <!-- Main Content -->
+    <main class="main-content">
+        <div class="dashboard">
+            <div class="dashboard-header">
+                <h2>QR Code Scanner</h2>
+                <p class="dashboard-subtitle">Scan student QR codes for quick access to medical information</p>
+            </div>
+
+            <!-- Scanner Interface -->
             <div class="scanner-container">
                 <div class="scanner-section">
-                    <h3>Scan Student QR Code</h3>
-                    <div id="scanner">
-                        <video id="video" width="300" height="200" autoplay></video>
-                        <canvas id="canvas" width="300" height="200" style="display: none;"></canvas>
+                    <div class="scanner-header">
+                        <h3><i class="fas fa-qrcode"></i> Student QR Code Scanner</h3>
+                        <p>Position the QR code within the camera frame for automatic detection</p>
                     </div>
+
+                    <div class="scanner-viewport">
+                        <div id="scanner" class="scanner-active">
+                            <video id="video" autoplay playsinline></video>
+                            <canvas id="canvas" style="display: none;"></canvas>
+                            <div class="scanner-overlay">
+                                <div class="scanner-frame">
+                                    <div class="corner top-left"></div>
+                                    <div class="corner top-right"></div>
+                                    <div class="corner bottom-left"></div>
+                                    <div class="corner bottom-right"></div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="scanner-placeholder" id="scannerPlaceholder" style="display: none;">
+                            <div class="placeholder-content">
+                                <i class="fas fa-camera"></i>
+                                <p>Camera access required</p>
+                                <button class="btn-primary" onclick="requestCameraAccess()">Enable Camera</button>
+                            </div>
+                        </div>
+                    </div>
+
                     <div class="scanner-controls">
-                        <button id="startScan" class="btn-primary">Start Scanning</button>
-                        <button id="stopScan" class="btn-secondary" style="display: none;">Stop Scanning</button>
+                        <button id="startScan" class="btn-primary">
+                            <i class="fas fa-play"></i> Start Scanning
+                        </button>
+                        <button id="stopScan" class="btn-secondary" style="display: none;">
+                            <i class="fas fa-stop"></i> Stop Scanning
+                        </button>
+                        <button id="toggleTorch" class="btn-secondary" style="display: none;">
+                            <i class="fas fa-lightbulb"></i> Flashlight
+                        </button>
+                    </div>
+
+                    <div class="scanner-info">
+                        <div class="info-item">
+                            <i class="fas fa-info-circle"></i>
+                            <span>Ensure good lighting for better scanning</span>
+                        </div>
+                        <div class="info-item">
+                            <i class="fas fa-mobile-alt"></i>
+                            <span>Hold device steady while scanning</span>
+                        </div>
                     </div>
                 </div>
 
+                <!-- Scan Result -->
                 <div class="scan-result" id="scanResult" style="display: none;">
-                    <h3>Scan Result</h3>
-                    <div id="studentInfo">
+                    <div class="result-header">
+                        <h3><i class="fas fa-check-circle"></i> Scan Successful</h3>
+                        <button class="btn-close" onclick="closeScanResult()">
+                            <i class="fas fa-times"></i>
+                        </button>
+                    </div>
+
+                    <div id="studentInfo" class="student-card">
                         <!-- Student information will be displayed here -->
                     </div>
+
                     <div class="scan-actions">
-                        <button id="viewRecord" class="btn-primary">View Medical Record</button>
-                        <button id="createAppointment" class="btn-secondary">Create Appointment</button>
+                        <button id="viewRecord" class="btn-primary">
+                            <i class="fas fa-file-medical"></i> View Medical Record
+                        </button>
+                        <button id="createAppointment" class="btn-primary">
+                            <i class="fas fa-calendar-plus"></i> Create Appointment
+                        </button>
+                        <button id="quickCheckIn" class="btn-secondary">
+                            <i class="fas fa-sign-in-alt"></i> Quick Check-in
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Recent Scans -->
+                <div class="recent-scans">
+                    <h3><i class="fas fa-history"></i> Recent Scans</h3>
+                    <div id="recentScansList" class="scans-list">
+                        <!-- Recent scans will be displayed here -->
                     </div>
                 </div>
             </div>
         </div>
     </main>
 
-    <footer>
-        <p>&copy; 2024 Clinic Management System. All rights reserved.</p>
-    </footer>
-
     <script src="js/common.js"></script>
+    <script>
+        // Sidebar toggle functionality
+        document.getElementById('sidebarToggle').addEventListener('click', function() {
+            const sidebar = document.getElementById('sidebar');
+            const overlay = document.getElementById('sidebarOverlay');
+
+            if (window.innerWidth <= 768) {
+                sidebar.classList.toggle('mobile-open');
+                overlay.classList.toggle('active');
+            } else {
+                sidebar.classList.toggle('collapsed');
+            }
+        });
+
+        document.getElementById('sidebarOverlay').addEventListener('click', function() {
+            document.getElementById('sidebar').classList.remove('mobile-open');
+            this.classList.remove('active');
+        });
+
+        // Set active nav item
+        const currentPage = window.location.pathname.split('/').pop();
+        const navLinks = document.querySelectorAll('.sidebar-nav a');
+        navLinks.forEach(link => {
+            if (link.getAttribute('href') === currentPage) {
+                link.classList.add('active');
+            }
+        });
+
+        // Scanner variables
+        let stream = null;
+        let scanning = false;
+
+        // Initialize scanner
+        document.addEventListener('DOMContentLoaded', function() {
+            checkCameraSupport();
+            loadRecentScans();
+        });
+
+        // Check camera support
+        function checkCameraSupport() {
+            if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+                showCameraError('Camera not supported on this device');
+                return;
+            }
+        }
+
+        // Request camera access
+        async function requestCameraAccess() {
+            try {
+                const constraints = {
+                    video: {
+                        facingMode: 'environment', // Use back camera on mobile
+                        width: { ideal: 1280 },
+                        height: { ideal: 720 }
+                    }
+                };
+
+                stream = await navigator.mediaDevices.getUserMedia(constraints);
+                document.getElementById('video').srcObject = stream;
+                document.getElementById('scanner').style.display = 'block';
+                document.getElementById('scannerPlaceholder').style.display = 'none';
+                document.getElementById('startScan').style.display = 'inline-block';
+
+                // Check for flashlight support
+                checkTorchSupport();
+
+            } catch (error) {
+                console.error('Camera access denied:', error);
+                showCameraError('Camera access denied. Please allow camera access and try again.');
+            }
+        }
+
+        // Check torch/flashlight support
+        async function checkTorchSupport() {
+            if (!stream) return;
+
+            const track = stream.getVideoTracks()[0];
+            const capabilities = track.getCapabilities();
+
+            if (capabilities.torch) {
+                document.getElementById('toggleTorch').style.display = 'inline-block';
+            }
+        }
+
+        // Start scanning
+        document.getElementById('startScan').addEventListener('click', function() {
+            if (!stream) {
+                requestCameraAccess().then(() => {
+                    startScanning();
+                });
+            } else {
+                startScanning();
+            }
+        });
+
+        function startScanning() {
+            scanning = true;
+            document.getElementById('startScan').style.display = 'none';
+            document.getElementById('stopScan').style.display = 'inline-block';
+            document.getElementById('scanner').classList.add('scanning');
+
+            // Start QR code detection (placeholder - would integrate with QR library)
+            simulateScan();
+        }
+
+        // Stop scanning
+        document.getElementById('stopScan').addEventListener('click', function() {
+            stopScanning();
+        });
+
+        function stopScanning() {
+            scanning = false;
+            document.getElementById('startScan').style.display = 'inline-block';
+            document.getElementById('stopScan').style.display = 'none';
+            document.getElementById('scanner').classList.remove('scanning');
+        }
+
+        // Toggle flashlight
+        document.getElementById('toggleTorch').addEventListener('click', async function() {
+            if (!stream) return;
+
+            const track = stream.getVideoTracks()[0];
+            const capabilities = track.getCapabilities();
+
+            if (capabilities.torch) {
+                try {
+                    const currentTorch = track.getSettings().torch || false;
+                    await track.applyConstraints({
+                        advanced: [{ torch: !currentTorch }]
+                    });
+
+                    this.innerHTML = !currentTorch ?
+                        '<i class="fas fa-lightbulb"></i> Turn Off Flash' :
+                        '<i class="fas fa-lightbulb"></i> Flashlight';
+                } catch (error) {
+                    console.error('Torch control failed:', error);
+                }
+            }
+        });
+
+        // Simulate QR scan (replace with actual QR library)
+        function simulateScan() {
+            if (!scanning) return;
+
+            // Simulate successful scan after 3 seconds
+            setTimeout(() => {
+                if (scanning) {
+                    showScanResult();
+                    stopScanning();
+                }
+            }, 3000);
+        }
+
+        // Show scan result
+        function showScanResult() {
+            const studentInfo = document.getElementById('studentInfo');
+            studentInfo.innerHTML = `
+                <div class="student-avatar">
+                    <i class="fas fa-user-circle"></i>
+                </div>
+                <div class="student-details">
+                    <h4>John Doe</h4>
+                    <p class="student-id">Student ID: STU001</p>
+                    <p class="student-program">Computer Science</p>
+                    <p class="student-contact">john.doe@university.edu</p>
+                    <div class="student-status">
+                        <span class="status-badge active">Active Student</span>
+                    </div>
+                </div>
+            `;
+
+            document.getElementById('scanResult').style.display = 'block';
+            document.getElementById('scanResult').scrollIntoView({ behavior: 'smooth' });
+
+            // Add to recent scans
+            addToRecentScans('John Doe', 'STU001');
+        }
+
+        // Close scan result
+        function closeScanResult() {
+            document.getElementById('scanResult').style.display = 'none';
+        }
+
+        // Load recent scans
+        function loadRecentScans() {
+            const recentList = document.getElementById('recentScansList');
+            // This would typically load from local storage or backend
+            recentList.innerHTML = `
+                <div class="scan-item">
+                    <div class="scan-info">
+                        <span class="scan-name">Jane Smith</span>
+                        <span class="scan-time">2 hours ago</span>
+                    </div>
+                    <button class="btn-small" onclick="rescan('STU002')">Rescan</button>
+                </div>
+                <div class="scan-item">
+                    <div class="scan-info">
+                        <span class="scan-name">Mike Johnson</span>
+                        <span class="scan-time">1 day ago</span>
+                    </div>
+                    <button class="btn-small" onclick="rescan('STU003')">Rescan</button>
+                </div>
+            `;
+        }
+
+        // Add to recent scans
+        function addToRecentScans(name, id) {
+            const recentList = document.getElementById('recentScansList');
+            const newScan = document.createElement('div');
+            newScan.className = 'scan-item';
+            newScan.innerHTML = `
+                <div class="scan-info">
+                    <span class="scan-name">${name}</span>
+                    <span class="scan-time">Just now</span>
+                </div>
+                <button class="btn-small" onclick="rescan('${id}')">Rescan</button>
+            `;
+
+            // Insert at the beginning
+            if (recentList.firstChild) {
+                recentList.insertBefore(newScan, recentList.firstChild);
+            } else {
+                recentList.appendChild(newScan);
+            }
+
+            // Keep only last 5 scans
+            while (recentList.children.length > 5) {
+                recentList.removeChild(recentList.lastChild);
+            }
+        }
+
+        // Rescan function
+        function rescan(studentId) {
+            // Implement rescan functionality
+            alert(`Rescanning student ${studentId}`);
+        }
+
+        // Show camera error
+        function showCameraError(message) {
+            document.getElementById('scanner').style.display = 'none';
+            document.getElementById('scannerPlaceholder').innerHTML = `
+                <div class="placeholder-content">
+                    <i class="fas fa-exclamation-triangle"></i>
+                    <p>${message}</p>
+                </div>
+            `;
+            document.getElementById('scannerPlaceholder').style.display = 'flex';
+        }
+
+        // Cleanup on page unload
+        window.addEventListener('beforeunload', function() {
+            if (stream) {
+                stream.getTracks().forEach(track => track.stop());
+            }
+        });
+    </script>
 </body>
 </html>
