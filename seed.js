@@ -6,10 +6,10 @@ async function seedDatabase() {
 
   try {
     connection = await mysql.createConnection({
-      host: process.env.DB_HOST || 'localhost',
-      user: process.env.DB_USER || 'root',
-      password: process.env.DB_PASSWORD || '',
-      database: process.env.DB_NAME || 'clinic_db',
+      host: process.env.DB_HOST || 'LAPTOP-CO8MFUK2\SQLEXPRESS',
+      user: process.env.DB_USER || 'ctu_clinic',
+      password: process.env.DB_PASSWORD || 'Eclinic2025@',
+      database: process.env.DB_NAME || 'CTU_ClinicDB',
       multipleStatements: true
     });
 
