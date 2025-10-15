@@ -1,46 +1,51 @@
 const express = require('express');
 const router = express.Router();
-const db = require('../db');
+const { poolPromise, sql } = require('../db');
 const { authorizeRole } = require('../middleware/auth');
 
-// Get all users
-router.get('/users', authorizeRole(['admin']), async (req, res) => {
+// Update admin profile
+router.put('/profile', authorizeRole(['admin']), async (req, res) => {
   try {
-    const [rows] = await db.execute('SELECT id, name, email, role, created_at FROM users');
-    res.json(rows);
-  } catch (error) {
-    console.error('Error fetching users:', error);
-    res.status(500).json({ message: 'Error fetching users' });
-  }
-});
+    const userId = req.user.id;
+    const {
+      firstName,
+      middleName,
+      lastName,
+      suffix,
+      email,
+      phone,
+      department
+    } = req.body;
 
-// Get dashboard stats
-router.get('/stats', authorizeRole(['admin']), async (req, res) => {
-  try {
-    const [userStats] = await db.execute('SELECT role, COUNT(*) as count FROM users GROUP BY role');
-    const [bookingStats] = await db.execute('SELECT status, COUNT(*) as count FROM bookings GROUP BY status');
-    const [reportStats] = await db.execute('SELECT COUNT(*) as total_reports FROM reports');
+    const pool = await poolPromise;
 
-    res.json({
-      users: userStats,
-      bookings: bookingStats,
-      reports: reportStats[0].total_reports
-    });
-  } catch (error) {
-    console.error('Error fetching stats:', error);
-    res.status(500).json({ message: 'Error fetching stats' });
-  }
-});
+    // Update users table
+    const updateUserRequest = pool.request();
+    await updateUserRequest
+      .input('first_name', sql.VarChar, firstName)
+      .input('middle_name', sql.VarChar, middleName || null)
+      .input('last_name', sql.VarChar, lastName)
+      .input('extension_name', sql.VarChar, suffix || null)
+      .input('email', sql.VarChar, email)
+      .input('contact_number', sql.VarChar, phone)
+      .input('department', sql.VarChar, department || null)
+      .input('id', sql.Int, userId)
+      .query(`
+        UPDATE users
+        SET first_name = @first_name,
+            middle_name = @middle_name,
+            last_name = @last_name,
+            extension_name = @extension_name,
+            email = @email,
+            contact_number = @contact_number,
+            department = @department
+        WHERE id = @id
+      `);
 
-// Delete user
-router.delete('/users/:id', authorizeRole(['admin']), async (req, res) => {
-  try {
-    const { id } = req.params;
-    await db.execute('DELETE FROM users WHERE id = ?', [id]);
-    res.json({ message: 'User deleted successfully' });
+    res.json({ message: 'Profile updated successfully' });
   } catch (error) {
-    console.error('Error deleting user:', error);
-    res.status(500).json({ message: 'Error deleting user' });
+    console.error('Error updating admin profile:', error);
+    res.status(500).json({ message: 'Error updating admin profile' });
   }
 });
 

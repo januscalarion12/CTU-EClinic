@@ -8,6 +8,37 @@
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
 </head>
 <body>
+    <!-- Top Header -->
+    <header class="top-header">
+        <div class="user-profile" id="userProfile">
+            <div class="user-info">
+                <span class="user-name" id="userName">Nurse User</span>
+                <span class="user-role">Nurse</span>
+            </div>
+            <div class="user-avatar">
+                <i class="fas fa-user-nurse"></i>
+            </div>
+            <button class="dropdown-toggle" id="dropdownToggle">
+                <i class="fas fa-chevron-down"></i>
+            </button>
+            <div class="profile-dropdown" id="profileDropdown">
+                <a href="nurse_profile.html" class="dropdown-item">
+                    <i class="fas fa-user"></i> Profile
+                </a>
+                <a href="nurse_availability.html" class="dropdown-item">
+                    <i class="fas fa-clock"></i> Availability
+                </a>
+                <a href="#" class="dropdown-item" id="logout">
+                    <i class="fas fa-sign-out-alt"></i> Logout
+                </a>
+            </div>
+        </div>
+        <!-- Sidebar Toggle Button -->
+        <button class="sidebar-toggle" id="sidebarToggle">
+            <i class="fas fa-bars"></i>
+        </button>
+    </header>
+
     <!-- Sidebar Navigation -->
     <nav class="sidebar" id="sidebar">
         <div class="sidebar-header">
@@ -27,11 +58,6 @@
             </ul>
         </div>
     </nav>
-
-    <!-- Sidebar Toggle Button -->
-    <button class="sidebar-toggle" id="sidebarToggle">
-        <i class="fas fa-bars"></i>
-    </button>
 
     <!-- Mobile Overlay -->
     <div class="sidebar-overlay" id="sidebarOverlay"></div>
@@ -90,18 +116,38 @@
                                 <input type="text" id="firstName" name="firstName" required>
                             </div>
                             <div class="form-group">
-                                <label for="lastName">Last Name</label>
-                                <input type="text" id="lastName" name="lastName" required>
+                                <label for="middleName">Middle Name</label>
+                                <input type="text" id="middleName" name="middleName">
                             </div>
                         </div>
                         <div class="form-row">
                             <div class="form-group">
+                                <label for="lastName">Last Name</label>
+                                <input type="text" id="lastName" name="lastName" required>
+                            </div>
+                            <div class="form-group">
+                                <label for="suffix">Suffix</label>
+                                <input type="text" id="suffix" name="suffix">
+                            </div>
+                        </div>
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label for="licenseNumber">License Number</label>
+                                <input type="text" id="licenseNumber" name="licenseNumber" required readonly>
+                            </div>
+                            <div class="form-group">
                                 <label for="email">Email Address</label>
                                 <input type="email" id="email" name="email" required>
                             </div>
+                        </div>
+                        <div class="form-row">
                             <div class="form-group">
                                 <label for="phone">Phone Number</label>
                                 <input type="tel" id="phone" name="phone">
+                            </div>
+                            <div class="form-group">
+                                <label for="department">Department</label>
+                                <input type="text" id="department" name="department" placeholder="e.g., Nursing Department">
                             </div>
                         </div>
                         <div class="form-row">
@@ -110,8 +156,8 @@
                                 <input type="text" id="specialization" name="specialization" placeholder="e.g., General Practice, Pediatrics">
                             </div>
                             <div class="form-group">
-                                <label for="licenseNumber">License Number</label>
-                                <input type="text" id="licenseNumber" name="licenseNumber">
+                                <label for="yearsOfExperience">Years of Experience</label>
+                                <input type="number" id="yearsOfExperience" name="yearsOfExperience" min="0">
                             </div>
                         </div>
                         <div class="form-group">
@@ -191,22 +237,112 @@
             }
         }
 
-        // Load profile data
-        function loadProfileData() {
-            // This would typically fetch data from your backend
-            document.getElementById('profileName').textContent = 'Sarah Johnson';
-            document.getElementById('profileRole').textContent = 'Registered Nurse';
-            document.getElementById('profileEmail').textContent = 'sarah.johnson@clinic.edu';
+        // Profile management functionality
+        async function loadProfileData() {
+            try {
+                const token = localStorage.getItem('token');
+                if (!token) {
+                    window.location.href = 'login.html';
+                    return;
+                }
 
-            // Populate form fields
-            document.getElementById('firstName').value = 'Sarah';
-            document.getElementById('lastName').value = 'Johnson';
-            document.getElementById('email').value = 'sarah.johnson@clinic.edu';
-            document.getElementById('phone').value = '+1-555-0123';
-            document.getElementById('specialization').value = 'General Practice';
-            document.getElementById('licenseNumber').value = 'RN123456';
-            document.getElementById('bio').value = 'Experienced registered nurse with 5 years in university health services.';
+                const response = await fetch('/api/auth/profile', {
+                    headers: {
+                        'Authorization': `Bearer ${token}`
+                    }
+                });
+
+                if (response.ok) {
+                    const userData = await response.json();
+
+                    // Update header info
+                    const fullName = [userData.firstName, userData.middleName, userData.lastName, userData.extensionName].filter(Boolean).join(' ');
+                    document.getElementById('profileName').textContent = fullName;
+                    document.getElementById('profileRole').textContent = 'Registered Nurse';
+                    document.getElementById('profileEmail').textContent = userData.email;
+
+                    // Populate form fields
+                    document.getElementById('firstName').value = userData.firstName || '';
+                    document.getElementById('middleName').value = userData.middleName || '';
+                    document.getElementById('lastName').value = userData.lastName || '';
+                    document.getElementById('suffix').value = userData.extensionName || '';
+                    document.getElementById('licenseNumber').value = userData.ctuId || '';
+                    document.getElementById('email').value = userData.email || '';
+                    document.getElementById('phone').value = userData.contactNumber || '';
+
+                    // Load additional nurse data
+                    await loadNurseData(userData.id);
+                } else {
+                    console.error('Failed to load profile data');
+                }
+            } catch (error) {
+                console.error('Error loading profile:', error);
+            }
         }
+
+        async function loadNurseData(userId) {
+            try {
+                const token = localStorage.getItem('token');
+                const response = await fetch(`/api/nurses/profile/${userId}`, {
+                    headers: {
+                        'Authorization': `Bearer ${token}`
+                    }
+                });
+
+                if (response.ok) {
+                    const nurseData = await response.json();
+                    document.getElementById('specialization').value = nurseData.specialization || '';
+                    document.getElementById('department').value = nurseData.department || '';
+                    document.getElementById('yearsOfExperience').value = nurseData.years_of_experience || '';
+                    document.getElementById('bio').value = nurseData.bio || '';
+                }
+            } catch (error) {
+                console.error('Error loading nurse data:', error);
+            }
+        }
+
+        // Handle profile form submission
+        document.getElementById('profileForm').addEventListener('submit', async function(e) {
+            e.preventDefault();
+
+            try {
+                const token = localStorage.getItem('token');
+                const formData = new FormData(this);
+
+                const updateData = {
+                    firstName: formData.get('firstName'),
+                    middleName: formData.get('middleName'),
+                    lastName: formData.get('lastName'),
+                    suffix: formData.get('suffix'),
+                    email: formData.get('email'),
+                    phone: formData.get('phone'),
+                    specialization: formData.get('specialization'),
+                    department: formData.get('department'),
+                    yearsOfExperience: formData.get('yearsOfExperience'),
+                    bio: formData.get('bio')
+                };
+
+                const response = await fetch('/api/nurses/profile', {
+                    method: 'PUT',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${token}`
+                    },
+                    body: JSON.stringify(updateData)
+                });
+
+                if (response.ok) {
+                    alert('Profile updated successfully!');
+                    loadProfileData(); // Reload data to reflect changes
+                } else {
+                    const error = await response.json();
+                    alert('Error updating profile: ' + error.message);
+                }
+            } catch (error) {
+                console.error('Error updating profile:', error);
+                alert('Error updating profile');
+            }
+        });
 
         // Load profile data on page load
         loadProfileData();

@@ -21,7 +21,7 @@ body {
     height: 60px;
     background: linear-gradient(135deg, var(--ctu-primary) 0%, #5a0303 100%);
     color: white;
-    z-index: 1100;
+    z-index: 1200;
     box-shadow: 0 2px 10px rgba(0,0,0,0.1);
     display: flex;
     align-items: center;
@@ -100,7 +100,7 @@ body {
     visibility: hidden;
     transform: translateY(-10px);
     transition: all 0.3s ease;
-    z-index: 1200;
+    z-index: 1300;
     margin-top: 10px;
 }
 
@@ -223,20 +223,20 @@ header {
 
 .sidebar-toggle {
     position: fixed;
-    top: 20px;
-    left: 20px;
+    top: 15px;
+    left: 15px;
     background: var(--ctu-primary);
     color: white;
     border: none;
-    width: 45px;
-    height: 45px;
+    width: 40px;
+    height: 40px;
     border-radius: 8px;
     cursor: pointer;
-    z-index: 1001;
+    z-index: 1300;
     display: flex;
     align-items: center;
     justify-content: center;
-    font-size: 18px;
+    font-size: 16px;
     box-shadow: 0 2px 10px rgba(0,0,0,0.2);
     transition: all 0.3s ease;
 }
@@ -247,11 +247,11 @@ header {
 }
 
 .sidebar.collapsed ~ .sidebar-toggle {
-    left: 20px;
+    left: 15px;
 }
 
 .sidebar:not(.collapsed) ~ .sidebar-toggle {
-    left: 300px;
+    left: 290px;
 }
 
 .sidebar-nav {
@@ -496,6 +496,8 @@ header {
     transition: margin-left 0.3s ease;
     min-height: calc(100vh - 60px);
     background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+    position: relative;
+    z-index: 1;
 }
 
 .sidebar.collapsed ~ .main-content {
@@ -678,7 +680,7 @@ footer p {
     }
 
     .sidebar:not(.collapsed) ~ .sidebar-toggle {
-        left: 270px;
+        left: 280px;
     }
 }
 
@@ -693,7 +695,7 @@ footer p {
     }
 
     .sidebar-toggle {
-        left: 20px !important;
+        left: 15px !important;
     }
 
     .main-content {
@@ -1971,6 +1973,43 @@ input:checked + .toggle-slider:before {
     max-width: 500px;
 }
 
+.modal-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 20px;
+    padding-bottom: 15px;
+    border-bottom: 1px solid #eee;
+}
+
+.modal-header h3 {
+    margin: 0;
+    color: var(--ctu-primary);
+    font-size: 1.4rem;
+    font-weight: 600;
+}
+
+.modal-close {
+    background: none;
+    border: none;
+    font-size: 24px;
+    cursor: pointer;
+    color: #666;
+    padding: 0;
+    width: 30px;
+    height: 30px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 50%;
+    transition: all 0.3s ease;
+}
+
+.modal-close:hover {
+    background-color: #f0f0f0;
+    color: #333;
+}
+
 /* Scanner styles */
 .scanner-container {
     display: flex;
@@ -2157,4 +2196,33 @@ input:checked + .toggle-slider:before {
 
 .user-list {
     margin-top: 20px;
+/* Availability Info */
+.availability-info {
+    margin-top: 5px;
+    font-size: 0.9rem;
+}
+
+.available-info {
+    color: #28a745;
+    font-weight: 500;
+}
+
+.no-availability {
+    color: #dc3545;
+    font-weight: 500;
+}
+
+.error-info {
+    color: #dc3545;
+    font-weight: 500;
+}
+
+/* Slot Capacity */
+.slot-capacity {
+    display: block;
+    margin-bottom: 5px;
+    font-size: 0.85rem;
+    color: #6c757d;
+    font-weight: 500;
+}
 }

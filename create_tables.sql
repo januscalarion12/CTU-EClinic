@@ -139,19 +139,19 @@ CREATE INDEX idx_medical_records_record_type ON medical_records(record_type);
 CREATE TABLE nurse_availability (
     id INT IDENTITY(1,1) PRIMARY KEY,
     nurse_id INT NOT NULL,
-    day_of_week NVARCHAR(10) NOT NULL CHECK (day_of_week IN ('monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday')),
+    date DATE NOT NULL,
     start_time TIME NOT NULL,
     end_time TIME NOT NULL,
+    maxPatients INT DEFAULT 10,
     is_available BIT DEFAULT 1,
-    max_appointments INT DEFAULT 10,
     created_at DATETIME2 DEFAULT GETDATE(),
     updated_at DATETIME2 DEFAULT GETDATE(),
     FOREIGN KEY (nurse_id) REFERENCES nurses(id) ON DELETE NO ACTION,
-    UNIQUE (nurse_id, day_of_week)
+    UNIQUE (nurse_id, date)
 );
 
 CREATE INDEX idx_nurse_availability_nurse_id ON nurse_availability(nurse_id);
-CREATE INDEX idx_nurse_availability_day_of_week ON nurse_availability(day_of_week);
+CREATE INDEX idx_nurse_availability_date ON nurse_availability(date);
 
 CREATE TABLE reports (
     id INT IDENTITY(1,1) PRIMARY KEY,

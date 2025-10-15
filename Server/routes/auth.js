@@ -4,6 +4,7 @@ const jwt = require('jsonwebtoken');
 const router = express.Router();
 const { poolPromise, sql } = require('../db');
 const { sendPasswordResetEmail } = require('../utils/mailer');
+const { authenticateToken } = require('../middleware/auth');
 
 // Register
 router.post('/register', async (req, res) => {
@@ -179,6 +180,119 @@ router.post('/reset-password', async (req, res) => {
   } catch (error) {
     console.error('Error resetting password:', error);
     res.status(500).json({ message: 'Invalid or expired token' });
+  }
+});
+
+// Get authenticated user profile
+router.get('/profile', authenticateToken, async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const pool = await poolPromise;
+
+    const request = pool.request();
+    const result = await request
+      .input('id', sql.Int, userId)
+      .query(`
+        SELECT
+          id,
+          first_name,
+          middle_name,
+          last_name,
+          extension_name,
+          email,
+          contact_number,
+          role,
+          ctu_id,
+          school_year,
+          school_level,
+          department,
+          created_at
+        FROM users
+        WHERE id = @id
+      `);
+
+    if (result.recordset.length === 0) {
+      return res.status(404).json({ message: 'User not found' });
+    }
+
+    const user = result.recordset[0];
+
+    // Combine name fields
+    const nameParts = [user.first_name, user.middle_name, user.last_name, user.extension_name].filter(Boolean);
+    const fullName = nameParts.join(' ').trim();
+
+    // Return user profile data
+    res.json({
+      id: user.id,
+      name: fullName,
+      firstName: user.first_name,
+      middleName: user.middle_name,
+      lastName: user.last_name,
+      extensionName: user.extension_name,
+      email: user.email,
+      contactNumber: user.contact_number,
+      role: user.role,
+      ctuId: user.ctu_id,
+      schoolYear: user.school_year,
+      schoolLevel: user.school_level,
+      department: user.department,
+      createdAt: user.created_at
+    });
+  } catch (error) {
+    console.error('Error fetching profile:', error);
+    res.status(500).json({ message: 'Error fetching profile' });
+  }
+});
+
+// Update user profile
+router.put('/profile', authenticateToken, async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const {
+      firstName,
+      middleName,
+      lastName,
+      suffix,
+      email,
+      contactNumber,
+      schoolYear,
+      schoolLevel,
+      department
+    } = req.body;
+
+    const pool = await poolPromise;
+
+    // Update users table
+    const updateUserRequest = pool.request();
+    await updateUserRequest
+      .input('first_name', sql.VarChar, firstName)
+      .input('middle_name', sql.VarChar, middleName || null)
+      .input('last_name', sql.VarChar, lastName)
+      .input('extension_name', sql.VarChar, suffix || null)
+      .input('email', sql.VarChar, email)
+      .input('contact_number', sql.VarChar, contactNumber)
+      .input('school_year', sql.VarChar, schoolYear || null)
+      .input('school_level', sql.VarChar, schoolLevel || null)
+      .input('department', sql.VarChar, department || null)
+      .input('id', sql.Int, userId)
+      .query(`
+        UPDATE users
+        SET first_name = @first_name,
+            middle_name = @middle_name,
+            last_name = @last_name,
+            extension_name = @extension_name,
+            email = @email,
+            contact_number = @contact_number,
+            school_year = @school_year,
+            school_level = @school_level,
+            department = @department
+        WHERE id = @id
+      `);
+
+    res.json({ message: 'Profile updated successfully' });
+  } catch (error) {
+    console.error('Error updating profile:', error);
+    res.status(500).json({ message: 'Error updating profile' });
   }
 });
 

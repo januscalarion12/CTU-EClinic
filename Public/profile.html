@@ -67,29 +67,110 @@
             <h2>My Profile</h2>
             <div class="profile-form">
                 <form id="profileForm">
-                    <div class="form-group">
-                        <label for="firstName">First Name</label>
-                        <input type="text" id="firstName" name="firstName" required>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="firstName">First Name</label>
+                            <input type="text" id="firstName" name="firstName" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="middleName">Middle Name</label>
+                            <input type="text" id="middleName" name="middleName">
+                        </div>
                     </div>
-                    <div class="form-group">
-                        <label for="lastName">Last Name</label>
-                        <input type="text" id="lastName" name="lastName" required>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="lastName">Last Name</label>
+                            <input type="text" id="lastName" name="lastName" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="suffix">Suffix</label>
+                            <input type="text" id="suffix" name="suffix">
+                        </div>
                     </div>
-                    <div class="form-group">
-                        <label for="email">Email</label>
-                        <input type="email" id="email" name="email" required>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="studentId">Student ID</label>
+                            <input type="text" id="studentId" name="studentId" required readonly>
+                        </div>
+                        <div class="form-group">
+                            <label for="email">Email</label>
+                            <input type="email" id="email" name="email" required>
+                        </div>
                     </div>
-                    <div class="form-group">
-                        <label for="phone">Phone</label>
-                        <input type="tel" id="phone" name="phone">
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="contactNumber">Contact Number</label>
+                            <input type="tel" id="contactNumber" name="contactNumber" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="dateOfBirth">Date of Birth</label>
+                            <input type="date" id="dateOfBirth" name="dateOfBirth">
+                        </div>
                     </div>
-                    <div class="form-group">
-                        <label for="dateOfBirth">Date of Birth</label>
-                        <input type="date" id="dateOfBirth" name="dateOfBirth">
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="schoolYear">School Year</label>
+                            <select id="schoolYear" name="schoolYear" required>
+                                <option value="">Select School Year</option>
+                                <option value="2023-2024">2023-2024</option>
+                                <option value="2024-2025">2024-2025</option>
+                                <option value="2025-2026">2025-2026</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label for="schoolLevel">School Level</label>
+                            <select id="schoolLevel" name="schoolLevel" required>
+                                <option value="">Select School Level</option>
+                                <option value="1ST YEAR">1ST YEAR</option>
+                                <option value="2ND YEAR">2ND YEAR</option>
+                                <option value="3RD YEAR">3RD YEAR</option>
+                                <option value="4TH YEAR">4TH YEAR</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="department">Department</label>
+                            <select id="department" name="department" required>
+                                <option value="">Select Department</option>
+                                <option value="BSHM">BSHM</option>
+                                <option value="BSIT">BSIT</option>
+                                <option value="BSFI">BSFI</option>
+                                <option value="BSIE">BSIE</option>
+                                <option value="BSED">BSED</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label for="gender">Gender</label>
+                            <select id="gender" name="gender">
+                                <option value="">Select Gender</option>
+                                <option value="male">Male</option>
+                                <option value="female">Female</option>
+                                <option value="other">Other</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="bloodType">Blood Type</label>
+                            <input type="text" id="bloodType" name="bloodType" placeholder="e.g., A+, B-, O+">
+                        </div>
+                        <div class="form-group">
+                            <label for="emergencyContact">Emergency Contact</label>
+                            <input type="text" id="emergencyContact" name="emergencyContact" placeholder="Name and Phone">
+                        </div>
                     </div>
                     <div class="form-group">
                         <label for="address">Address</label>
-                        <textarea id="address" name="address"></textarea>
+                        <textarea id="address" name="address" rows="3"></textarea>
+                    </div>
+                    <div class="form-group">
+                        <label for="allergies">Allergies</label>
+                        <textarea id="allergies" name="allergies" rows="2" placeholder="List any known allergies"></textarea>
+                    </div>
+                    <div class="form-group">
+                        <label for="medicalConditions">Medical Conditions</label>
+                        <textarea id="medicalConditions" name="medicalConditions" rows="2" placeholder="List any medical conditions"></textarea>
                     </div>
                     <button type="submit" class="btn-primary">Update Profile</button>
                 </form>
@@ -129,6 +210,121 @@
                 link.classList.add('active');
             }
         });
+
+        // Profile management functionality
+        async function loadProfileData() {
+            try {
+                const token = localStorage.getItem('token');
+                if (!token) {
+                    window.location.href = 'login.html';
+                    return;
+                }
+
+                const response = await fetch('/api/auth/profile', {
+                    headers: {
+                        'Authorization': `Bearer ${token}`
+                    }
+                });
+
+                if (response.ok) {
+                    const userData = await response.json();
+
+                    // Populate form fields
+                    document.getElementById('firstName').value = userData.firstName || '';
+                    document.getElementById('middleName').value = userData.middleName || '';
+                    document.getElementById('lastName').value = userData.lastName || '';
+                    document.getElementById('suffix').value = userData.extensionName || '';
+                    document.getElementById('studentId').value = userData.ctuId || '';
+                    document.getElementById('email').value = userData.email || '';
+                    document.getElementById('contactNumber').value = userData.contactNumber || '';
+                    document.getElementById('schoolYear').value = userData.schoolYear || '';
+                    document.getElementById('schoolLevel').value = userData.schoolLevel || '';
+                    document.getElementById('department').value = userData.department || '';
+
+                    // Load additional student data
+                    await loadStudentData(userData.id);
+                } else {
+                    console.error('Failed to load profile data');
+                }
+            } catch (error) {
+                console.error('Error loading profile:', error);
+            }
+        }
+
+        async function loadStudentData(userId) {
+            try {
+                const token = localStorage.getItem('token');
+                const response = await fetch(`/api/students/profile/${userId}`, {
+                    headers: {
+                        'Authorization': `Bearer ${token}`
+                    }
+                });
+
+                if (response.ok) {
+                    const studentData = await response.json();
+                    document.getElementById('dateOfBirth').value = studentData.date_of_birth ? studentData.date_of_birth.split('T')[0] : '';
+                    document.getElementById('gender').value = studentData.gender || '';
+                    document.getElementById('bloodType').value = studentData.blood_type || '';
+                    document.getElementById('emergencyContact').value = studentData.emergency_contact || '';
+                    document.getElementById('address').value = studentData.address || '';
+                    document.getElementById('allergies').value = studentData.allergies || '';
+                    document.getElementById('medicalConditions').value = studentData.medical_conditions || '';
+                }
+            } catch (error) {
+                console.error('Error loading student data:', error);
+            }
+        }
+
+        // Handle profile form submission
+        document.getElementById('profileForm').addEventListener('submit', async function(e) {
+            e.preventDefault();
+
+            try {
+                const token = localStorage.getItem('token');
+                const formData = new FormData(this);
+
+                const updateData = {
+                    firstName: formData.get('firstName'),
+                    middleName: formData.get('middleName'),
+                    lastName: formData.get('lastName'),
+                    suffix: formData.get('suffix'),
+                    email: formData.get('email'),
+                    contactNumber: formData.get('contactNumber'),
+                    schoolYear: formData.get('schoolYear'),
+                    schoolLevel: formData.get('schoolLevel'),
+                    department: formData.get('department'),
+                    dateOfBirth: formData.get('dateOfBirth'),
+                    gender: formData.get('gender'),
+                    bloodType: formData.get('bloodType'),
+                    emergencyContact: formData.get('emergencyContact'),
+                    address: formData.get('address'),
+                    allergies: formData.get('allergies'),
+                    medicalConditions: formData.get('medicalConditions')
+                };
+
+                const response = await fetch('/api/students/profile', {
+                    method: 'PUT',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${token}`
+                    },
+                    body: JSON.stringify(updateData)
+                });
+
+                if (response.ok) {
+                    alert('Profile updated successfully!');
+                } else {
+                    const error = await response.json();
+                    alert('Error updating profile: ' + error.message);
+                }
+            } catch (error) {
+                console.error('Error updating profile:', error);
+                alert('Error updating profile');
+            }
+        });
+
+        // Load profile data on page load
+        loadProfileData();
     </script>
 </body>
 </html>

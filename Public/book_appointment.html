@@ -70,17 +70,12 @@
                     <div class="form-group">
                         <label for="appointmentDate">Preferred Date</label>
                         <input type="date" id="appointmentDate" name="appointmentDate" required>
+                        <div id="dateAvailability" class="availability-info"></div>
                     </div>
                     <div class="form-group">
-                        <label for="appointmentTime">Preferred Time</label>
+                        <label for="appointmentTime">Available Time Slots</label>
                         <select id="appointmentTime" name="appointmentTime" required>
-                            <option value="">Select Time</option>
-                            <option value="09:00">9:00 AM</option>
-                            <option value="10:00">10:00 AM</option>
-                            <option value="11:00">11:00 AM</option>
-                            <option value="14:00">2:00 PM</option>
-                            <option value="15:00">3:00 PM</option>
-                            <option value="16:00">4:00 PM</option>
+                            <option value="">Select Date First</option>
                         </select>
                     </div>
                     <div class="form-group">
@@ -131,6 +126,110 @@
             if (link.getAttribute('href') === currentPage) {
                 link.classList.add('active');
             }
+        });
+
+        // Date change handler
+        document.getElementById('appointmentDate').addEventListener('change', async function() {
+            const selectedDate = this.value;
+            if (selectedDate) {
+                await loadAvailableSlots(selectedDate);
+            } else {
+                resetTimeSlots();
+            }
+        });
+
+        // Load available time slots for selected date
+        async function loadAvailableSlots(date) {
+            const timeSelect = document.getElementById('appointmentTime');
+            const availabilityInfo = document.getElementById('dateAvailability');
+
+            try {
+                const response = await fetch(`/api/nurse/availability?date=${date}`, {
+                    headers: {
+                        'Authorization': `Bearer ${localStorage.getItem('token')}`
+                    }
+                });
+
+                if (response.ok) {
+                    const slots = await response.json();
+
+                    if (slots.length === 0) {
+                        availabilityInfo.innerHTML = '<span class="no-availability">No nurses available on this date</span>';
+                        timeSelect.innerHTML = '<option value="">No slots available</option>';
+                        timeSelect.disabled = true;
+                        return;
+                    }
+
+                    availabilityInfo.innerHTML = `<span class="available-info">${slots.length} nurse(s) available</span>`;
+
+                    // Generate time slots from nurse availability
+                    const timeSlots = generateTimeSlots(slots);
+                    timeSelect.innerHTML = '<option value="">Select Time</option>' +
+                        timeSlots.map(slot => `<option value="${slot.value}">${slot.label}</option>`).join('');
+                    timeSelect.disabled = false;
+
+                } else {
+                    availabilityInfo.innerHTML = '<span class="error-info">Error loading availability</span>';
+                    resetTimeSlots();
+                }
+            } catch (error) {
+                console.error('Error loading availability:', error);
+                availabilityInfo.innerHTML = '<span class="error-info">Error loading availability</span>';
+                resetTimeSlots();
+            }
+        }
+
+        function generateTimeSlots(availabilitySlots) {
+            const slots = [];
+            const slotDuration = 60; // 60 minutes per slot
+
+            availabilitySlots.forEach(slot => {
+                const startTime = new Date(`2000-01-01T${slot.start_time}`);
+                const endTime = new Date(`2000-01-01T${slot.end_time}`);
+
+                let currentTime = new Date(startTime);
+
+                while (currentTime < endTime) {
+                    const slotEnd = new Date(currentTime.getTime() + slotDuration * 60000);
+
+                    if (slotEnd <= endTime) {
+                        const timeValue = currentTime.toTimeString().slice(0, 5);
+                        const timeLabel = `${currentTime.toLocaleTimeString('en-US', {
+                            hour: 'numeric',
+                            minute: '2-digit',
+                            hour12: true
+                        })} - ${slotEnd.toLocaleTimeString('en-US', {
+                            hour: 'numeric',
+                            minute: '2-digit',
+                            hour12: true
+                        })}`;
+
+                        slots.push({
+                            value: timeValue,
+                            label: timeLabel
+                        });
+                    }
+
+                    currentTime = slotEnd;
+                }
+            });
+
+            return slots;
+        }
+
+        function resetTimeSlots() {
+            const timeSelect = document.getElementById('appointmentTime');
+            timeSelect.innerHTML = '<option value="">Select Date First</option>';
+            timeSelect.disabled = true;
+        }
+
+        // Initialize on page load
+        document.addEventListener('DOMContentLoaded', function() {
+            // Set minimum date to today
+            const today = new Date().toISOString().split('T')[0];
+            document.getElementById('appointmentDate').setAttribute('min', today);
+
+            resetTimeSlots();
         });
     </script>
 </body>

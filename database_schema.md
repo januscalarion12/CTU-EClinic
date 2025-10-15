@@ -160,17 +160,17 @@ Nurse scheduling and availability.
 CREATE TABLE nurse_availability (
     id INT PRIMARY KEY AUTO_INCREMENT,
     nurse_id INT NOT NULL,
-    day_of_week ENUM('monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday') NOT NULL,
+    availability_date DATE NOT NULL,
     start_time TIME NOT NULL,
     end_time TIME NOT NULL,
+    max_patients INT DEFAULT 10,
     is_available BOOLEAN DEFAULT TRUE,
-    max_appointments INT DEFAULT 10,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     FOREIGN KEY (nurse_id) REFERENCES nurses(id) ON DELETE CASCADE,
-    UNIQUE KEY unique_nurse_day (nurse_id, day_of_week),
+    UNIQUE KEY unique_nurse_date (nurse_id, availability_date),
     INDEX idx_nurse_id (nurse_id),
-    INDEX idx_day_of_week (day_of_week)
+    INDEX idx_availability_date (availability_date)
 );
 ```
 

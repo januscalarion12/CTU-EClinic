@@ -1,6 +1,6 @@
 const express = require('express');
 const router = express.Router();
-const db = require('../db');
+const { poolPromise, sql } = require('../db');
 const { authorizeRole } = require('../middleware/auth');
 
 // Get student profile
@@ -23,25 +23,130 @@ router.get('/profile', authorizeRole(['student']), async (req, res) => {
   }
 });
 
+// Get student profile data
+router.get('/profile/:userId', authorizeRole(['student']), async (req, res) => {
+  try {
+    const userId = req.params.userId;
+    const pool = await poolPromise;
+
+    const request = pool.request();
+    const result = await request
+      .input('user_id', sql.Int, userId)
+      .query(`
+        SELECT
+          id,
+          user_id,
+          student_id,
+          name,
+          email,
+          phone,
+          address,
+          emergency_contact,
+          date_of_birth,
+          gender,
+          blood_type,
+          allergies,
+          medical_conditions,
+          school_year,
+          school_level,
+          department
+        FROM students
+        WHERE user_id = @user_id
+      `);
+
+    if (result.recordset.length === 0) {
+      return res.status(404).json({ message: 'Student profile not found' });
+    }
+
+    res.json(result.recordset[0]);
+  } catch (error) {
+    console.error('Error fetching student profile:', error);
+    res.status(500).json({ message: 'Error fetching student profile' });
+  }
+});
+
 // Update student profile
 router.put('/profile', authorizeRole(['student']), async (req, res) => {
   try {
-    const studentId = req.user.id;
-    const { name, email, phone, address, emergency_contact } = req.body;
+    const userId = req.user.id;
+    const {
+      firstName,
+      middleName,
+      lastName,
+      suffix,
+      email,
+      contactNumber,
+      schoolYear,
+      schoolLevel,
+      department,
+      dateOfBirth,
+      gender,
+      bloodType,
+      emergencyContact,
+      address,
+      allergies,
+      medicalConditions
+    } = req.body;
 
-    // Update user table
-    if (name || email) {
-      await db.execute(
-        'UPDATE users SET name = ?, email = ? WHERE id = (SELECT user_id FROM students WHERE id = ?)',
-        [name, email, studentId]
-      );
-    }
+    const pool = await poolPromise;
 
-    // Update student table
-    await db.execute(
-      'UPDATE students SET phone = ?, address = ?, emergency_contact = ? WHERE id = ?',
-      [phone, address, emergency_contact, studentId]
-    );
+    // Update users table
+    const updateUserRequest = pool.request();
+    await updateUserRequest
+      .input('first_name', sql.VarChar, firstName)
+      .input('middle_name', sql.VarChar, middleName || null)
+      .input('last_name', sql.VarChar, lastName)
+      .input('extension_name', sql.VarChar, suffix || null)
+      .input('email', sql.VarChar, email)
+      .input('contact_number', sql.VarChar, contactNumber)
+      .input('school_year', sql.VarChar, schoolYear || null)
+      .input('school_level', sql.VarChar, schoolLevel || null)
+      .input('department', sql.VarChar, department || null)
+      .input('id', sql.Int, userId)
+      .query(`
+        UPDATE users
+        SET first_name = @first_name,
+            middle_name = @middle_name,
+            last_name = @last_name,
+            extension_name = @extension_name,
+            email = @email,
+            contact_number = @contact_number,
+            school_year = @school_year,
+            school_level = @school_level,
+            department = @department
+        WHERE id = @id
+      `);
+
+    // Update students table
+    const updateStudentRequest = pool.request();
+    await updateStudentRequest
+      .input('phone', sql.VarChar, contactNumber)
+      .input('address', sql.Text, address || null)
+      .input('emergency_contact', sql.VarChar, emergencyContact || null)
+      .input('date_of_birth', sql.Date, dateOfBirth || null)
+      .input('gender', sql.VarChar, gender || null)
+      .input('blood_type', sql.VarChar, bloodType || null)
+      .input('allergies', sql.Text, allergies || null)
+      .input('medical_conditions', sql.Text, medicalConditions || null)
+      .input('school_year', sql.VarChar, schoolYear || null)
+      .input('school_level', sql.VarChar, schoolLevel || null)
+      .input('department', sql.VarChar, department || null)
+      .input('user_id', sql.Int, userId)
+      .query(`
+        UPDATE students
+        SET phone = @phone,
+            address = @address,
+            emergency_contact = @emergency_contact,
+            date_of_birth = @date_of_birth,
+            gender = @gender,
+            blood_type = @blood_type,
+            allergies = @allergies,
+            medical_conditions = @medical_conditions,
+            school_year = @school_year,
+            school_level = @school_level,
+            department = @department
+        WHERE user_id = @user_id
+      `);
 
     res.json({ message: 'Profile updated successfully' });
   } catch (error) {

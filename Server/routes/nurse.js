@@ -1,6 +1,6 @@
 const express = require('express');
 const router = express.Router();
-const db = require('../db');
+const { poolPromise, sql } = require('../db');
 const { authorizeRole } = require('../middleware/auth');
 const { generateQRCode } = require('../utils/qr');
 
@@ -127,4 +127,251 @@ router.post('/reports', authorizeRole(['nurse']), async (req, res) => {
   }
 });
 
+// Get nurse profile data
+router.get('/profile/:userId', authorizeRole(['nurse']), async (req, res) => {
+  try {
+    const userId = req.params.userId;
+    const pool = await poolPromise;
+
+    const request = pool.request();
+    const result = await request
+      .input('user_id', sql.Int, userId)
+      .query(`
+        SELECT
+          id,
+          user_id,
+          name,
+          email,
+          specialization,
+          license_number,
+          phone,
+          department,
+          years_of_experience,
+          is_active,
+          created_at
+        FROM nurses
+        WHERE user_id = @user_id
+      `);
+
+    if (result.recordset.length === 0) {
+      return res.status(404).json({ message: 'Nurse profile not found' });
+    }
+
+    res.json(result.recordset[0]);
+  } catch (error) {
+    console.error('Error fetching nurse profile:', error);
+    res.status(500).json({ message: 'Error fetching nurse profile' });
+  }
+});
+
+// Update nurse profile
+router.put('/profile', authorizeRole(['nurse']), async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const {
+      firstName,
+      middleName,
+      lastName,
+      suffix,
+      email,
+      phone,
+      specialization,
+      department,
+      yearsOfExperience,
+      bio
+    } = req.body;
+
+    const pool = await poolPromise;
+
+    // Update users table
+    const updateUserRequest = pool.request();
+    await updateUserRequest
+      .input('first_name', sql.VarChar, firstName)
+      .input('middle_name', sql.VarChar, middleName || null)
+      .input('last_name', sql.VarChar, lastName)
+      .input('extension_name', sql.VarChar, suffix || null)
+      .input('email', sql.VarChar, email)
+      .input('contact_number', sql.VarChar, phone)
+      .input('id', sql.Int, userId)
+      .query(`
+        UPDATE users
+        SET first_name = @first_name,
+            middle_name = @middle_name,
+            last_name = @last_name,
+            extension_name = @extension_name,
+            email = @email,
+            contact_number = @contact_number
+        WHERE id = @id
+      `);
+
+    // Update nurses table
+    const updateNurseRequest = pool.request();
+    await updateNurseRequest
+      .input('specialization', sql.VarChar, specialization || null)
+      .input('phone', sql.VarChar, phone)
+      .input('department', sql.VarChar, department || null)
+      .input('years_of_experience', sql.Int, yearsOfExperience || null)
+      .input('user_id', sql.Int, userId)
+      .query(`
+        UPDATE nurses
+        SET specialization = @specialization,
+            phone = @phone,
+            department = @department,
+            years_of_experience = @years_of_experience
+        WHERE user_id = @user_id
+      `);
+
+    res.json({ message: 'Profile updated successfully' });
+  } catch (error) {
+    console.error('Error updating nurse profile:', error);
+    res.status(500).json({ message: 'Error updating nurse profile' });
+  }
+});
+
+// Get nurse availability
+router.get('/availability', authorizeRole(['nurse']), async (req, res) => {
+  try {
+    const nurseId = req.user.id;
+    const { date } = req.query;
+
+    const pool = await poolPromise;
+
+    let query = `
+      SELECT id, nurse_id, date, start_time, end_time, maxPatients, is_available
+      FROM nurse_availability
+      WHERE nurse_id = @nurse_id
+    `;
+    let request = pool.request().input('nurse_id', sql.Int, nurseId);
+
+    if (date) {
+      query += ' AND date = @date';
+      request = request.input('date', sql.Date, date);
+    }
+
+    query += ' ORDER BY date, start_time';
+
+    const result = await request.query(query);
+    res.json(result.recordset);
+  } catch (error) {
+    console.error('Error fetching availability:', error);
+    res.status(500).json({ message: 'Error fetching availability' });
+  }
+});
+
+// Create/Update availability
+router.post('/availability', authorizeRole(['nurse']), async (req, res) => {
+  try {
+    const nurseId = req.user.id;
+    const { date, startTime, endTime, maxPatients } = req.body;
+
+    const pool = await poolPromise;
+
+    // Check if availability already exists for this date
+    const existingRequest = pool.request();
+    const existing = await existingRequest
+      .input('nurse_id', sql.Int, nurseId)
+      .input('date', sql.Date, date)
+      .query(`
+        SELECT id FROM nurse_availability
+        WHERE nurse_id = @nurse_id AND date = @date
+      `);
+
+    if (existing.recordset.length > 0) {
+      // Update existing
+      const updateRequest = pool.request();
+      await updateRequest
+        .input('id', sql.Int, existing.recordset[0].id)
+        .input('start_time', sql.Time, startTime)
+        .input('end_time', sql.Time, endTime)
+        .input('maxPatients', sql.Int, maxPatients)
+        .query(`
+          UPDATE nurse_availability
+          SET start_time = @start_time,
+              end_time = @end_time,
+              maxPatients = @maxPatients,
+              updated_at = GETDATE()
+          WHERE id = @id
+        `);
+
+      res.json({ message: 'Availability updated successfully' });
+    } else {
+      // Create new
+      const insertRequest = pool.request();
+      await insertRequest
+        .input('nurse_id', sql.Int, nurseId)
+        .input('date', sql.Date, date)
+        .input('start_time', sql.Time, startTime)
+        .input('end_time', sql.Time, endTime)
+        .input('maxPatients', sql.Int, maxPatients)
+        .query(`
+          INSERT INTO nurse_availability (nurse_id, date, start_time, end_time, maxPatients)
+          VALUES (@nurse_id, @date, @start_time, @end_time, @maxPatients)
+        `);
+
+      res.status(201).json({ message: 'Availability created successfully' });
+    }
+  } catch (error) {
+    console.error('Error saving availability:', error);
+    res.status(500).json({ message: 'Error saving availability' });
+  }
+});
+
+// Get specific availability slot
+router.get('/availability/:id', authorizeRole(['nurse']), async (req, res) => {
+  try {
+    const nurseId = req.user.id;
+    const id = req.params.id;
+
+    const pool = await poolPromise;
+
+    const request = pool.request();
+    const result = await request
+      .input('id', sql.Int, id)
+      .input('nurse_id', sql.Int, nurseId)
+      .query(`
+        SELECT id, nurse_id, date, start_time, end_time, maxPatients, is_available
+        FROM nurse_availability
+        WHERE id = @id AND nurse_id = @nurse_id
+      `);
+
+    if (result.recordset.length === 0) {
+      return res.status(404).json({ message: 'Availability slot not found' });
+    }
+
+    res.json(result.recordset[0]);
+  } catch (error) {
+    console.error('Error fetching availability slot:', error);
+    res.status(500).json({ message: 'Error fetching availability slot' });
+  }
+});
+
+// Delete availability slot
+router.delete('/availability/:id', authorizeRole(['nurse']), async (req, res) => {
+  try {
+    const nurseId = req.user.id;
+    const id = req.params.id;
+
+    const pool = await poolPromise;
+
+    const request = pool.request();
+    const result = await request
+      .input('id', sql.Int, id)
+      .input('nurse_id', sql.Int, nurseId)
+      .query(`
+        DELETE FROM nurse_availability
+        WHERE id = @id AND nurse_id = @nurse_id
+      `);
+
+    if (result.rowsAffected[0] === 0) {
+      return res.status(404).json({ message: 'Availability slot not found' });
+    }
+
+    res.json({ message: 'Availability slot deleted successfully' });
+  } catch (error) {
+    console.error('Error deleting availability slot:', error);
+    res.status(500).json({ message: 'Error deleting availability slot' });
+  }
+});
+
+module.exports = router;
 module.exports = router;

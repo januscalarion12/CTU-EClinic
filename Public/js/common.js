@@ -820,18 +820,77 @@ function closeAllDropdowns() {
     toggles.forEach(toggle => toggle.classList.remove('rotated'));
 }
 
-function loadUserInfo() {
-    const user = JSON.parse(localStorage.getItem('user'));
-    if (user) {
-        const userNameElement = document.getElementById('userName');
-        const userRoleElement = document.getElementById('userRole');
+async function loadUserInfo() {
+    const token = localStorage.getItem('token');
+    if (!token) return;
 
-        if (userNameElement) {
-            userNameElement.textContent = `${user.firstName} ${user.lastName}`;
+    try {
+        const response = await fetch(`${API_BASE_URL}/auth/profile`, {
+            headers: {
+                'Authorization': `Bearer ${token}`
+            }
+        });
+
+        const result = await response.json();
+
+        if (response.ok) {
+            // Update localStorage with fresh data
+            localStorage.setItem('user', JSON.stringify({
+                id: result.id,
+                firstName: result.firstName,
+                lastName: result.lastName,
+                name: result.name,
+                email: result.email,
+                role: result.role,
+                ctuId: result.ctuId,
+                schoolYear: result.schoolYear,
+                schoolLevel: result.schoolLevel,
+                department: result.department
+            }));
+
+            // Update UI elements
+            const userNameElement = document.getElementById('userName');
+            const userRoleElement = document.getElementById('userRole');
+
+            if (userNameElement) {
+                userNameElement.textContent = result.name;
+            }
+
+            if (userRoleElement) {
+                userRoleElement.textContent = result.role.charAt(0).toUpperCase() + result.role.slice(1);
+            }
+        } else {
+            console.error('Failed to load user profile:', result.message);
+            // Fallback to localStorage if API fails
+            const user = JSON.parse(localStorage.getItem('user'));
+            if (user) {
+                const userNameElement = document.getElementById('userName');
+                const userRoleElement = document.getElementById('userRole');
+
+                if (userNameElement) {
+                    userNameElement.textContent = user.name || `${user.firstName} ${user.lastName}`;
+                }
+
+                if (userRoleElement) {
+                    userRoleElement.textContent = user.role.charAt(0).toUpperCase() + user.role.slice(1);
+                }
+            }
         }
+    } catch (error) {
+        console.error('Error loading user info:', error);
+        // Fallback to localStorage if network error
+        const user = JSON.parse(localStorage.getItem('user'));
+        if (user) {
+            const userNameElement = document.getElementById('userName');
+            const userRoleElement = document.getElementById('userRole');
 
-        if (userRoleElement) {
-            userRoleElement.textContent = user.role.charAt(0).toUpperCase() + user.role.slice(1);
+            if (userNameElement) {
+                userNameElement.textContent = user.name || `${user.firstName} ${user.lastName}`;
+            }
+
+            if (userRoleElement) {
+                userRoleElement.textContent = user.role.charAt(0).toUpperCase() + user.role.slice(1);
+            }
         }
     }
 }
