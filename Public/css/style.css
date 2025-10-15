@@ -28,6 +28,7 @@ nav {
     background: var(--ctu-primary);
     color: white;
     padding: 1rem 0;
+    box-shadow: 0 2px 5px rgba(0,0,0,0.2);
 }
 
 .nav-container {
@@ -41,6 +42,8 @@ nav {
 
 .nav-container h1 {
     margin: 0;
+    font-weight: bold;
+    font-size: 1.5rem;
 }
 
 nav ul {
@@ -55,49 +58,69 @@ nav ul li {
 nav ul li a {
     color: white;
     text-decoration: none;
-    padding: 5px 10px;
-    border-radius: 4px;
-    transition: background-color 0.3s;
+    padding: 8px 16px;
+    border-radius: 6px;
+    transition: all 0.3s ease;
+    font-weight: 500;
 }
 
 nav ul li a:hover {
-    background-color: #34495e;
+    background-color: rgba(255, 255, 255, 0.1);
+    transform: translateY(-2px);
 }
 
 /* Hero section */
 .hero {
-    background: var(--ctu-primary);
+    background: linear-gradient(rgba(0,0,0,0.6), rgba(0,0,0,0.6)), url('https://images.unsplash.com/photo-1551190822-a9333d879b1f?ixlib=rb-1.2.1&auto=format&fit=crop&w=1350&q=80');
+    background-size: cover;
+    background-position: center;
     color: white;
-    padding: 100px 0;
+    padding: 120px 0;
     text-align: center;
 }
 
+.hero-content {
+    /* Removed overlay positioning */
+}
+
 .hero-content h2 {
-    font-size: 3rem;
-    margin-bottom: 20px;
+    font-size: 3.5rem;
+    margin-bottom: 25px;
+    font-weight: 700;
+    letter-spacing: -1px;
+    line-height: 1.1;
 }
 
 .hero-content p {
-    font-size: 1.2rem;
-    margin-bottom: 30px;
+    font-size: 1.4rem;
+    margin-bottom: 40px;
+    font-weight: 300;
+    line-height: 1.6;
+    max-width: 600px;
+    margin-left: auto;
+    margin-right: auto;
 }
 
 /* Buttons */
 .btn-primary {
-    background: var(--ctu-primary);
+    background: var(--ctu-secondary);
     color: white;
-    padding: 12px 24px;
+    padding: 16px 32px;
     border: none;
-    border-radius: 4px;
+    border-radius: 8px;
     cursor: pointer;
-    font-size: 16px;
+    font-size: 18px;
+    font-weight: 600;
     text-decoration: none;
     display: inline-block;
-    transition: background 0.3s;
+    transition: all 0.3s ease;
+    box-shadow: 0 4px 15px rgba(253, 177, 19, 0.3);
 }
 
 .btn-primary:hover {
-    background: var(--ctu-secondary);
+    background: #e6a800;
+    transform: translateY(-2px);
+    box-shadow: 0 6px 20px rgba(253, 177, 19, 0.4);
 }
 
 .btn-secondary {
@@ -302,8 +325,25 @@ footer {
     background: var(--ctu-primary);
     color: white;
     text-align: center;
-    padding: 20px 0;
-    margin-top: 40px;
+    padding: 40px 0 20px;
+    margin-top: 60px;
+    position: relative;
+}
+
+footer::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 4px;
+    background: linear-gradient(90deg, var(--ctu-secondary), #e6a800);
+}
+
+footer p {
+    margin: 0;
+    font-size: 1rem;
+    font-weight: 300;
 }
 
 /* Responsive design */
