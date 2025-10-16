@@ -1,6 +1,8 @@
 require('dotenv').config();
 
 const express = require('express');
+const session = require('express-session');
+const MSSQLStore = require('connect-mssql-v2');
 const cors = require('cors');
 const path = require('path');
 const db = require('./Server/db');
@@ -12,8 +14,42 @@ const { authenticateToken } = require('./Server/middleware/auth');
 
 const app = express();
 
+// Session configuration
+const sessionConfig = {
+  store: new MSSQLStore({
+    server: process.env.DB_HOST || 'localhost',
+    port: parseInt(process.env.DB_PORT) || 1433,
+    user: process.env.DB_USER || 'sa',
+    password: process.env.DB_PASSWORD || '',
+    database: process.env.DB_NAME || 'clinic_db',
+    options: {
+      encrypt: true,
+      trustServerCertificate: true,
+      enableArithAbort: true,
+    },
+    table: 'sessions',
+    ttl: 86400000, // 24 hours
+    autoRemove: 'interval',
+    autoRemoveInterval: 3600000, // 1 hour
+    createDatabaseTable: true // Enable automatic table creation
+  }),
+  secret: process.env.SESSION_SECRET || 'your-session-secret-key',
+  resave: false,
+  saveUninitialized: false,
+  cookie: {
+    secure: false, // Set to true in production with HTTPS
+    httpOnly: true,
+    maxAge: 24 * 60 * 60 * 1000 // 24 hours
+  }
+};
+
+app.use(session(sessionConfig));
+
 // Middleware
-app.use(cors());
+app.use(cors({
+  origin: true,
+  credentials: true
+}));
 app.use(express.json());
 app.use(express.static(path.join(__dirname, 'Public')));
 

@@ -119,17 +119,30 @@ router.post('/login', async (req, res) => {
       return res.status(401).json({ message: 'Invalid credentials' });
     }
 
-    const token = jwt.sign(
-      { id: user.id, email: user.email, role: user.role },
-      process.env.JWT_SECRET || 'your-secret-key',
-      { expiresIn: '24h' }
-    );
+    // Create session user object
+    const sessionUser = {
+      id: user.id,
+      email: user.email,
+      role: user.role,
+      firstName: user.first_name,
+      middleName: user.middle_name,
+      lastName: user.last_name,
+      extensionName: user.extension_name,
+      contactNumber: user.contact_number,
+      ctuId: user.ctu_id,
+      schoolYear: user.school_year,
+      schoolLevel: user.school_level,
+      department: user.department
+    };
+
+    // Store user in session
+    req.session.user = sessionUser;
 
     // Combine name fields for response
     const nameParts = [user.first_name, user.middle_name, user.last_name, user.extension_name].filter(Boolean);
     const fullName = nameParts.join(' ').trim();
 
-    res.json({ token, user: { id: user.id, name: fullName, email: user.email, role: user.role } });
+    res.json({ user: { id: user.id, name: fullName, email: user.email, role: user.role } });
   } catch (error) {
     console.error('Error logging in:', error);
     res.status(500).json({ message: 'Error logging in' });
@@ -293,6 +306,39 @@ router.put('/profile', authenticateToken, async (req, res) => {
   } catch (error) {
     console.error('Error updating profile:', error);
     res.status(500).json({ message: 'Error updating profile' });
+  }
+});
+
+// Logout
+router.post('/logout', (req, res) => {
+  req.session.destroy((err) => {
+    if (err) {
+      console.error('Error destroying session:', err);
+      return res.status(500).json({ message: 'Error logging out' });
+    }
+    res.clearCookie('connect.sid');
+    res.json({ message: 'Logged out successfully' });
+  });
+});
+
+// Check session status
+router.get('/session', (req, res) => {
+  if (req.session && req.session.user) {
+    const user = req.session.user;
+    const nameParts = [user.firstName, user.middleName, user.lastName, user.extensionName].filter(Boolean);
+    const fullName = nameParts.join(' ').trim();
+
+    res.json({
+      authenticated: true,
+      user: {
+        id: user.id,
+        name: fullName,
+        email: user.email,
+        role: user.role
+      }
+    });
+  } else {
+    res.json({ authenticated: false });
   }
 });
 

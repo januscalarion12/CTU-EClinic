@@ -128,6 +128,50 @@
             }
         });
 
+        // Form submission handler
+        document.getElementById('appointmentForm').addEventListener('submit', async function(e) {
+            e.preventDefault();
+
+            const formData = new FormData(this);
+            const selectedTimeOption = document.querySelector('#appointmentTime option:checked');
+            const nurseId = selectedTimeOption ? selectedTimeOption.getAttribute('data-nurse-id') : null;
+
+            if (!nurseId) {
+                alert('Please select a time slot');
+                return;
+            }
+
+            const appointmentData = {
+                nurseId: parseInt(nurseId),
+                appointmentDate: formData.get('appointmentDate') + 'T' + formData.get('appointmentTime'),
+                reason: formData.get('reason')
+            };
+
+            try {
+                const response = await fetch('/api/student/bookings', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${localStorage.getItem('token')}`
+                    },
+                    body: JSON.stringify(appointmentData)
+                });
+
+                if (response.ok) {
+                    const result = await response.json();
+                    alert('Appointment booked successfully! Your appointment is pending nurse approval.');
+                    this.reset();
+                    resetTimeSlots();
+                } else {
+                    const error = await response.json();
+                    alert('Error booking appointment: ' + error.message);
+                }
+            } catch (error) {
+                console.error('Error:', error);
+                alert('Error booking appointment');
+            }
+        });
+
         // Date change handler
         document.getElementById('appointmentDate').addEventListener('change', async function() {
             const selectedDate = this.value;
@@ -144,7 +188,7 @@
             const availabilityInfo = document.getElementById('dateAvailability');
 
             try {
-                const response = await fetch(`/api/nurse/availability?date=${date}`, {
+                const response = await fetch(`/api/student/availability?date=${date}`, {
                     headers: {
                         'Authorization': `Bearer ${localStorage.getItem('token')}`
                     }
@@ -165,9 +209,15 @@
                     // Generate time slots from nurse availability
                     const timeSlots = generateTimeSlots(slots);
                     timeSelect.innerHTML = '<option value="">Select Time</option>' +
-                        timeSlots.map(slot => `<option value="${slot.value}">${slot.label}</option>`).join('');
+                        timeSlots.map(slot => `<option value="${slot.value}" data-nurse-id="${slot.nurseId}">${slot.label}</option>`).join('');
                     timeSelect.disabled = false;
 
+                } else if (response.status === 403) {
+                    availabilityInfo.innerHTML = '<span class="error-info">Session expired. Please login again.</span>';
+                    resetTimeSlots();
+                    localStorage.removeItem('token');
+                    localStorage.removeItem('user');
+                    setTimeout(() => window.location.href = 'login.html', 2000);
                 } else {
                     availabilityInfo.innerHTML = '<span class="error-info">Error loading availability</span>';
                     resetTimeSlots();
@@ -194,7 +244,7 @@
 
                     if (slotEnd <= endTime) {
                         const timeValue = currentTime.toTimeString().slice(0, 5);
-                        const timeLabel = `${currentTime.toLocaleTimeString('en-US', {
+                        const timeLabel = `${slot.nurse_name}: ${currentTime.toLocaleTimeString('en-US', {
                             hour: 'numeric',
                             minute: '2-digit',
                             hour12: true
@@ -202,11 +252,12 @@
                             hour: 'numeric',
                             minute: '2-digit',
                             hour12: true
-                        })}`;
+                        })} (${slot.booked_slots}/${slot.max_patients} booked)`;
 
                         slots.push({
                             value: timeValue,
-                            label: timeLabel
+                            label: timeLabel,
+                            nurseId: slot.nurse_id
                         });
                     }
 

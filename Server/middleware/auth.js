@@ -1,6 +1,13 @@
 const jwt = require('jsonwebtoken');
 
 const authenticateToken = (req, res, next) => {
+  // Check for session-based authentication first
+  if (req.session && req.session.user) {
+    req.user = req.session.user;
+    return next();
+  }
+
+  // Fallback to JWT token authentication
   const authHeader = req.headers['authorization'];
   const token = authHeader && authHeader.split(' ')[1];
 

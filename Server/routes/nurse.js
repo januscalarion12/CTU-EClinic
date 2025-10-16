@@ -3,6 +3,7 @@ const router = express.Router();
 const { poolPromise, sql } = require('../db');
 const { authorizeRole } = require('../middleware/auth');
 const { generateQRCode } = require('../utils/qr');
+const { sendAppointmentStatusEmail } = require('../utils/mailer');
 
 // Helper function to get nurse ID from user ID
 async function getNurseId(userId) {
@@ -401,6 +402,159 @@ router.delete('/availability/:id', authorizeRole(['nurse']), async (req, res) =>
       return res.status(404).json({ message: error.message });
     }
     res.status(500).json({ message: 'Error deleting availability slot' });
+  }
+});
+
+// Get nurse's appointments
+router.get('/appointments', authorizeRole(['nurse']), async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const { status, date } = req.query;
+
+    const nurseId = await getNurseId(userId);
+    const pool = await poolPromise;
+
+    let query = `
+      SELECT
+        a.id,
+        a.student_id,
+        s.name as student_name,
+        s.student_id as student_number,
+        a.appointment_date,
+        a.reason,
+        a.status,
+        a.created_at,
+        a.notes
+      FROM appointments a
+      INNER JOIN students s ON a.student_id = s.id
+      WHERE a.nurse_id = @nurse_id
+    `;
+
+    const request = pool.request().input('nurse_id', sql.Int, nurseId);
+
+    if (status) {
+      query += ' AND a.status = @status';
+      request.input('status', sql.VarChar, status);
+    }
+
+    if (date) {
+      query += ' AND CAST(a.appointment_date AS DATE) = @date';
+      request.input('date', sql.Date, date);
+    }
+
+    query += ' ORDER BY a.appointment_date DESC';
+
+    const result = await request.query(query);
+    res.json(result.recordset);
+  } catch (error) {
+    console.error('Error fetching appointments:', error);
+    if (error.message === 'Nurse profile not found') {
+      return res.status(404).json({ message: error.message });
+    }
+    res.status(500).json({ message: 'Error fetching appointments' });
+  }
+});
+
+// Update appointment status (approve/reject)
+router.put('/appointments/:id/status', authorizeRole(['nurse']), async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const appointmentId = req.params.id;
+    const { status, notes } = req.body;
+
+    if (!['confirmed', 'cancelled'].includes(status)) {
+      return res.status(400).json({ message: 'Invalid status. Must be confirmed or cancelled.' });
+    }
+
+    const nurseId = await getNurseId(userId);
+    const pool = await poolPromise;
+
+    // First, verify the appointment belongs to this nurse
+    const verifyRequest = pool.request();
+    const verifyResult = await verifyRequest
+      .input('appointment_id', sql.Int, appointmentId)
+      .input('nurse_id', sql.Int, nurseId)
+      .query(`
+        SELECT a.id, a.student_id, s.name as student_name, a.appointment_date
+        FROM appointments a
+        INNER JOIN students s ON a.student_id = s.id
+        WHERE a.id = @appointment_id AND a.nurse_id = @nurse_id
+      `);
+
+    if (verifyResult.recordset.length === 0) {
+      return res.status(404).json({ message: 'Appointment not found' });
+    }
+
+    const appointment = verifyResult.recordset[0];
+
+    // Update appointment status
+    const updateRequest = pool.request();
+    await updateRequest
+      .input('appointment_id', sql.Int, appointmentId)
+      .input('status', sql.VarChar, status)
+      .input('notes', sql.NVarChar, notes || null)
+      .query(`
+        UPDATE appointments
+        SET status = @status, notes = @notes, updated_at = GETDATE()
+        WHERE id = @appointment_id
+      `);
+
+    // Create notification for the student
+    const notificationRequest = pool.request();
+    const statusMessage = status === 'confirmed' ? 'confirmed' : 'cancelled';
+    await notificationRequest
+      .input('user_id', sql.Int, appointment.student_id)
+      .input('title', sql.NVarChar, `Appointment ${statusMessage}`)
+      .input('message', sql.NVarChar, `Your appointment on ${new Date(appointment.appointment_date).toLocaleString()} has been ${statusMessage}.`)
+      .input('type', sql.NVarChar, status === 'confirmed' ? 'appointment_confirmed' : 'appointment_cancelled')
+      .input('related_id', sql.Int, appointmentId)
+      .input('related_type', sql.NVarChar, 'appointment')
+      .query(`
+        INSERT INTO notifications (user_id, title, message, type, related_id, related_type)
+        VALUES (@user_id, @title, @message, @type, @related_id, @related_type)
+      `);
+
+    // Send email notification to student
+    try {
+      const studentEmailRequest = pool.request();
+      const studentEmailResult = await studentEmailRequest
+        .input('student_id', sql.Int, appointment.student_id)
+        .query(`
+          SELECT u.email, s.name as student_name, n.name as nurse_name, a.reason
+          FROM students s
+          INNER JOIN users u ON s.user_id = u.id
+          INNER JOIN appointments a ON a.student_id = s.id
+          INNER JOIN nurses n ON a.nurse_id = n.id
+          WHERE s.id = @student_id AND a.id = @appointment_id
+        `);
+
+      if (studentEmailResult.recordset.length > 0) {
+        const emailData = studentEmailResult.recordset[0];
+        await sendAppointmentStatusEmail(emailData.email, {
+          status: status,
+          date: new Date(appointment.appointment_date).toLocaleDateString(),
+          time: new Date(appointment.appointment_date).toLocaleTimeString('en-US', {
+            hour: 'numeric',
+            minute: '2-digit',
+            hour12: true
+          }),
+          nurseName: emailData.nurse_name,
+          reason: emailData.reason,
+          notes: notes
+        });
+      }
+    } catch (emailError) {
+      console.error('Error sending appointment status email:', emailError);
+      // Don't fail the status update if email fails
+    }
+
+    res.json({ message: `Appointment ${statusMessage} successfully` });
+  } catch (error) {
+    console.error('Error updating appointment status:', error);
+    if (error.message === 'Nurse profile not found') {
+      return res.status(404).json({ message: error.message });
+    }
+    res.status(500).json({ message: 'Error updating appointment status' });
   }
 });
 

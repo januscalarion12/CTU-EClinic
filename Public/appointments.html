@@ -116,6 +116,62 @@
                 link.classList.add('active');
             }
         });
+
+        // Load appointments
+        async function loadAppointments() {
+            const tableBody = document.querySelector('#appointmentsTable tbody');
+
+            try {
+                const response = await fetch('/api/student/bookings', {
+                    headers: {
+                        'Authorization': `Bearer ${localStorage.getItem('token')}`
+                    }
+                });
+
+                if (response.ok) {
+                    const appointments = await response.json();
+                    displayAppointments(appointments);
+                } else {
+                    tableBody.innerHTML = '<tr><td colspan="5">Error loading appointments</td></tr>';
+                }
+            } catch (error) {
+                console.error('Error loading appointments:', error);
+                tableBody.innerHTML = '<tr><td colspan="5">Error loading appointments</td></tr>';
+            }
+        }
+
+        function displayAppointments(appointments) {
+            const tableBody = document.querySelector('#appointmentsTable tbody');
+
+            if (appointments.length === 0) {
+                tableBody.innerHTML = '<tr><td colspan="5">No appointments found</td></tr>';
+                return;
+            }
+
+            tableBody.innerHTML = appointments.map(apt => `
+                <tr>
+                    <td>${new Date(apt.appointment_date).toLocaleDateString()}</td>
+                    <td>${new Date(apt.appointment_date).toLocaleTimeString('en-US', {
+                        hour: 'numeric',
+                        minute: '2-digit',
+                        hour12: true
+                    })}</td>
+                    <td>${apt.nurse_name}</td>
+                    <td><span class="status-${apt.status}">${apt.status}</span></td>
+                    <td>
+                        ${apt.status === 'pending' ?
+                            '<span class="text-muted">Awaiting approval</span>' :
+                            apt.status === 'confirmed' ?
+                            '<span class="text-success">Confirmed</span>' :
+                            '<span class="text-muted">No actions</span>'
+                        }
+                    </td>
+                </tr>
+            `).join('');
+        }
+
+        // Load appointments on page load
+        document.addEventListener('DOMContentLoaded', loadAppointments);
     </script>
 </body>
 </html>

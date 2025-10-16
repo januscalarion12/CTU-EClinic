@@ -93,8 +93,73 @@ const sendReportNotificationEmail = async (email, reportDetails) => {
   }
 };
 
+// Send appointment status notification email
+const sendAppointmentStatusEmail = async (email, appointmentDetails) => {
+  const statusText = appointmentDetails.status === 'confirmed' ? 'confirmed' : 'cancelled';
+  const subject = `Appointment ${statusText.charAt(0).toUpperCase() + statusText.slice(1)}`;
+
+  const mailOptions = {
+    from: process.env.SMTP_USER,
+    to: email,
+    subject: subject,
+    html: `
+      <h2>Appointment ${statusText.charAt(0).toUpperCase() + statusText.slice(1)}</h2>
+      <p>Your appointment has been ${statusText}:</p>
+      <ul>
+        <li><strong>Date:</strong> ${appointmentDetails.date}</li>
+        <li><strong>Time:</strong> ${appointmentDetails.time}</li>
+        <li><strong>Nurse:</strong> ${appointmentDetails.nurseName}</li>
+        <li><strong>Reason:</strong> ${appointmentDetails.reason}</li>
+      </ul>
+      ${appointmentDetails.notes ? `<p><strong>Notes:</strong> ${appointmentDetails.notes}</p>` : ''}
+      ${appointmentDetails.status === 'confirmed' ?
+        '<p>Please arrive 15 minutes early for your appointment.</p>' :
+        '<p>If you have any questions, please contact the clinic.</p>'
+      }
+    `
+  };
+
+  try {
+    await transporter.sendMail(mailOptions);
+    console.log(`Appointment ${statusText} email sent to:`, email);
+  } catch (error) {
+    console.error(`Error sending appointment ${statusText} email:`, error);
+    throw error;
+  }
+};
+
+// Send new appointment request notification email to nurse
+const sendAppointmentRequestEmail = async (email, appointmentDetails) => {
+  const mailOptions = {
+    from: process.env.SMTP_USER,
+    to: email,
+    subject: 'New Appointment Request',
+    html: `
+      <h2>New Appointment Request</h2>
+      <p>A student has requested an appointment with you:</p>
+      <ul>
+        <li><strong>Student:</strong> ${appointmentDetails.studentName}</li>
+        <li><strong>Date:</strong> ${appointmentDetails.date}</li>
+        <li><strong>Time:</strong> ${appointmentDetails.time}</li>
+        <li><strong>Reason:</strong> ${appointmentDetails.reason}</li>
+      </ul>
+      <p>Please log in to your dashboard to approve or reject this appointment.</p>
+    `
+  };
+
+  try {
+    await transporter.sendMail(mailOptions);
+    console.log('Appointment request email sent to nurse:', email);
+  } catch (error) {
+    console.error('Error sending appointment request email:', error);
+    throw error;
+  }
+};
+
 module.exports = {
   sendPasswordResetEmail,
   sendBookingConfirmationEmail,
-  sendReportNotificationEmail
+  sendReportNotificationEmail,
+  sendAppointmentStatusEmail,
+  sendAppointmentRequestEmail
 };

@@ -105,6 +105,98 @@
                 link.classList.add('active');
             }
         });
+
+        // Load notifications
+        async function loadNotifications() {
+            const container = document.getElementById('notificationsContainer');
+
+            try {
+                const response = await fetch('/api/student/notifications', {
+                    headers: {
+                        'Authorization': `Bearer ${localStorage.getItem('token')}`
+                    }
+                });
+
+                if (response.ok) {
+                    const notifications = await response.json();
+                    displayNotifications(notifications);
+                } else {
+                    container.innerHTML = '<p>Error loading notifications</p>';
+                }
+            } catch (error) {
+                console.error('Error loading notifications:', error);
+                container.innerHTML = '<p>Error loading notifications</p>';
+            }
+        }
+
+        function displayNotifications(notifications) {
+            const container = document.getElementById('notificationsContainer');
+
+            if (notifications.length === 0) {
+                container.innerHTML = '<p>No notifications found</p>';
+                return;
+            }
+
+            container.innerHTML = notifications.map(notification => `
+                <div class="notification-item ${notification.is_read ? 'read' : 'unread'}" data-id="${notification.id}">
+                    <div class="notification-header">
+                        <h4>${notification.title}</h4>
+                        <span class="notification-time">${formatTime(notification.created_at)}</span>
+                    </div>
+                    <div class="notification-content">
+                        <p>${notification.message}</p>
+                    </div>
+                    <div class="notification-actions">
+                        ${!notification.is_read ?
+                            `<button class="btn-small" onclick="markAsRead(${notification.id})">Mark as Read</button>` :
+                            '<span class="text-muted">Read</span>'
+                        }
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        function formatTime(dateString) {
+            const date = new Date(dateString);
+            const now = new Date();
+            const diffInHours = Math.floor((now - date) / (1000 * 60 * 60));
+
+            if (diffInHours < 1) {
+                return 'Just now';
+            } else if (diffInHours < 24) {
+                return `${diffInHours} hour${diffInHours > 1 ? 's' : ''} ago`;
+            } else {
+                return date.toLocaleDateString();
+            }
+        }
+
+        async function markAsRead(notificationId) {
+            try {
+                const response = await fetch(`/api/student/notifications/${notificationId}/read`, {
+                    method: 'PUT',
+                    headers: {
+                        'Authorization': `Bearer ${localStorage.getItem('token')}`
+                    }
+                });
+
+                if (response.ok) {
+                    // Update the notification item to show as read
+                    const notificationItem = document.querySelector(`[data-id="${notificationId}"]`);
+                    notificationItem.classList.remove('unread');
+                    notificationItem.classList.add('read');
+                    const actionsDiv = notificationItem.querySelector('.notification-actions');
+                    actionsDiv.innerHTML = '<span class="text-muted">Read</span>';
+                } else {
+                    alert('Error marking notification as read');
+                }
+            } catch (error) {
+                console.error('Error marking notification as read:', error);
+                alert('Error marking notification as read');
+            }
+        }
+
+        // Load notifications on page load
+        document.addEventListener('DOMContentLoaded', loadNotifications);
     </script>
 </body>
 </html>

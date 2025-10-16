@@ -166,23 +166,140 @@
         });
 
         // Load appointment statistics
-        function loadAppointmentStats() {
-            // This would typically fetch data from your backend
-            document.getElementById('todayCount').textContent = '12';
-            document.getElementById('pendingCount').textContent = '5';
-            document.getElementById('completedCount').textContent = '28';
-            document.getElementById('cancelledCount').textContent = '2';
+        async function loadAppointmentStats() {
+            try {
+                const response = await fetch('/api/nurse/appointments', {
+                    headers: {
+                        'Authorization': `Bearer ${localStorage.getItem('token')}`
+                    }
+                });
+
+                if (response.ok) {
+                    const appointments = await response.json();
+                    const today = new Date().toISOString().split('T')[0];
+
+                    const stats = appointments.reduce((acc, apt) => {
+                        const aptDate = new Date(apt.appointment_date).toISOString().split('T')[0];
+                        if (aptDate === today) acc.today++;
+                        if (apt.status === 'pending') acc.pending++;
+                        if (apt.status === 'completed') acc.completed++;
+                        if (apt.status === 'cancelled') acc.cancelled++;
+                        return acc;
+                    }, { today: 0, pending: 0, completed: 0, cancelled: 0 });
+
+                    document.getElementById('todayCount').textContent = stats.today;
+                    document.getElementById('pendingCount').textContent = stats.pending;
+                    document.getElementById('completedCount').textContent = stats.completed;
+                    document.getElementById('cancelledCount').textContent = stats.cancelled;
+                }
+            } catch (error) {
+                console.error('Error loading stats:', error);
+            }
+        }
+
+        // Load appointments
+        async function loadAppointments() {
+            const statusFilter = document.getElementById('statusFilter').value;
+            const dateFilter = document.getElementById('dateFilter').value;
+            const tableBody = document.querySelector('#appointmentsTable tbody');
+
+            try {
+                let url = '/api/nurse/appointments';
+                const params = new URLSearchParams();
+                if (statusFilter) params.append('status', statusFilter);
+                if (dateFilter) params.append('date', dateFilter);
+                if (params.toString()) url += '?' + params.toString();
+
+                const response = await fetch(url, {
+                    headers: {
+                        'Authorization': `Bearer ${localStorage.getItem('token')}`
+                    }
+                });
+
+                if (response.ok) {
+                    const appointments = await response.json();
+                    displayAppointments(appointments);
+                } else {
+                    tableBody.innerHTML = '<tr><td colspan="5">Error loading appointments</td></tr>';
+                }
+            } catch (error) {
+                console.error('Error loading appointments:', error);
+                tableBody.innerHTML = '<tr><td colspan="5">Error loading appointments</td></tr>';
+            }
+        }
+
+        function displayAppointments(appointments) {
+            const tableBody = document.querySelector('#appointmentsTable tbody');
+
+            if (appointments.length === 0) {
+                tableBody.innerHTML = '<tr><td colspan="5">No appointments found</td></tr>';
+                return;
+            }
+
+            tableBody.innerHTML = appointments.map(apt => `
+                <tr>
+                    <td>${apt.student_name} (${apt.student_number})</td>
+                    <td>${new Date(apt.appointment_date).toLocaleDateString()}</td>
+                    <td>${new Date(apt.appointment_date).toLocaleTimeString('en-US', {
+                        hour: 'numeric',
+                        minute: '2-digit',
+                        hour12: true
+                    })}</td>
+                    <td><span class="status-${apt.status}">${apt.status}</span></td>
+                    <td>
+                        ${apt.status === 'pending' ?
+                            `<button class="btn-small btn-success" onclick="updateAppointmentStatus(${apt.id}, 'confirmed')">Approve</button>
+                             <button class="btn-small btn-danger" onclick="updateAppointmentStatus(${apt.id}, 'cancelled')">Reject</button>` :
+                            '<span class="text-muted">No actions</span>'
+                        }
+                    </td>
+                </tr>
+            `).join('');
+        }
+
+        async function updateAppointmentStatus(appointmentId, status) {
+            const notes = status === 'cancelled' ? prompt('Reason for cancellation (optional):') : null;
+
+            try {
+                const response = await fetch(`/api/nurse/appointments/${appointmentId}/status`, {
+                    method: 'PUT',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${localStorage.getItem('token')}`
+                    },
+                    body: JSON.stringify({ status, notes })
+                });
+
+                if (response.ok) {
+                    alert(`Appointment ${status} successfully!`);
+                    loadAppointments();
+                    loadAppointmentStats();
+                } else {
+                    const error = await response.json();
+                    alert('Error updating appointment: ' + error.message);
+                }
+            } catch (error) {
+                console.error('Error updating appointment:', error);
+                alert('Error updating appointment');
+            }
         }
 
         // Filter functions
         function clearFilters() {
             document.getElementById('statusFilter').value = '';
             document.getElementById('dateFilter').value = '';
-            // Re-load appointments with cleared filters
+            loadAppointments();
         }
 
-        // Load stats on page load
-        loadAppointmentStats();
+        // Event listeners
+        document.getElementById('statusFilter').addEventListener('change', loadAppointments);
+        document.getElementById('dateFilter').addEventListener('change', loadAppointments);
+
+        // Load data on page load
+        document.addEventListener('DOMContentLoaded', function() {
+            loadAppointmentStats();
+            loadAppointments();
+        });
     </script>
 </body>
 </html>
