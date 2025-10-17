@@ -3,6 +3,7 @@ const router = express.Router();
 const { poolPromise, sql } = require('../db');
 const { authorizeRole } = require('../middleware/auth');
 const { sendAppointmentRequestEmail } = require('../Utils/mailer');
+const { generateQRCode } = require('../utils/qr');
 
 // Get student profile
 router.get('/profile', authorizeRole(['student']), async (req, res) => {
@@ -186,6 +187,35 @@ router.get('/bookings', authorizeRole(['student']), async (req, res) => {
   }
 });
 
+// Get specific appointment details with QR code
+router.get('/appointments/:id', authorizeRole(['student']), async (req, res) => {
+  try {
+    const studentId = req.user.id;
+    const appointmentId = req.params.id;
+    const pool = await poolPromise;
+
+    const request = pool.request();
+    const result = await request
+      .input('appointment_id', sql.Int, appointmentId)
+      .input('student_id', sql.Int, studentId)
+      .query(`
+        SELECT a.*, n.name as nurse_name
+        FROM appointments a
+        JOIN nurses n ON a.nurse_id = n.id
+        WHERE a.id = @appointment_id AND a.student_id = @student_id
+      `);
+
+    if (result.recordset.length === 0) {
+      return res.status(404).json({ message: 'Appointment not found' });
+    }
+
+    res.json(result.recordset[0]);
+  } catch (error) {
+    console.error('Error fetching appointment:', error);
+    res.status(500).json({ message: 'Error fetching appointment' });
+  }
+});
+
 // Create booking
 router.post('/bookings', authorizeRole(['student']), async (req, res) => {
   try {
@@ -249,6 +279,23 @@ router.post('/bookings', authorizeRole(['student']), async (req, res) => {
         SELECT SCOPE_IDENTITY() AS id;
       `);
 
+    const appointmentId = result.recordset[0].id;
+
+    // Generate QR code for the appointment
+    const qrData = `appointment:${appointmentId}:${studentId}:${Date.now()}`;
+    const qrCode = await generateQRCode(qrData);
+
+    // Update appointment with QR code
+    const updateQrRequest = pool.request();
+    await updateQrRequest
+      .input('qr_code', sql.NVarChar, qrCode)
+      .input('appointment_id', sql.Int, appointmentId)
+      .query(`
+        UPDATE appointments
+        SET qr_code = @qr_code
+        WHERE id = @appointment_id
+      `);
+
     // Create notification for the nurse
     const notificationRequest = pool.request();
     await notificationRequest
@@ -295,7 +342,11 @@ router.post('/bookings', authorizeRole(['student']), async (req, res) => {
       // Don't fail the booking if email fails
     }
 
-    res.status(201).json({ message: 'Booking created successfully. Awaiting nurse approval.', bookingId: result.recordset[0].id });
+    res.status(201).json({
+      message: 'Booking created successfully. Awaiting nurse approval.',
+      bookingId: appointmentId,
+      qrCode: qrCode
+    });
   } catch (error) {
     console.error('Error creating booking:', error);
     res.status(500).json({ message: 'Error creating booking' });

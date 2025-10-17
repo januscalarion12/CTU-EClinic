@@ -80,9 +80,24 @@ const extractStudentIdFromQR = (qrData) => {
   }
 };
 
+// Extract appointment ID from QR code
+const extractAppointmentIdFromQR = (qrData) => {
+  try {
+    const parts = qrData.split(':');
+    if (parts.length !== 4 || parts[0] !== 'appointment') {
+      return null;
+    }
+    return parts[1];
+  } catch (error) {
+    console.error('Error extracting appointment ID from QR:', error);
+    return null;
+  }
+};
+
 module.exports = {
   generateQRCode,
   generateQRCodeBuffer,
   validateQRCode,
-  extractStudentIdFromQR
+  extractStudentIdFromQR,
+  extractAppointmentIdFromQR
 };

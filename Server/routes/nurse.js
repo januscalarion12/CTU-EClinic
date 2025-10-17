@@ -2,7 +2,7 @@ const express = require('express');
 const router = express.Router();
 const { poolPromise, sql } = require('../db');
 const { authorizeRole } = require('../middleware/auth');
-const { generateQRCode } = require('../utils/qr');
+const { generateQRCode, validateQRCode, extractAppointmentIdFromQR } = require('../utils/qr');
 const { sendAppointmentStatusEmail } = require('../Utils/mailer');
 
 // Helper function to get nurse ID from user ID
@@ -448,7 +448,8 @@ router.get('/appointments', authorizeRole(['nurse']), async (req, res) => {
         a.reason,
         a.status,
         a.created_at,
-        a.notes
+        a.notes,
+        a.qr_code
       FROM appointments a
       INNER JOIN students s ON a.student_id = s.id
       WHERE a.nurse_id = @nurse_id
@@ -755,7 +756,8 @@ router.get('/appointments-overview', authorizeRole(['nurse']), async (req, res) 
           s.student_id,
           a.appointment_date,
           a.reason,
-          a.status
+          a.status,
+          a.qr_code
         FROM appointments a
         INNER JOIN students s ON a.student_id = s.id
         WHERE a.nurse_id = @nurse_id
@@ -777,7 +779,8 @@ router.get('/appointments-overview', authorizeRole(['nurse']), async (req, res) 
           s.student_id,
           a.appointment_date,
           a.reason,
-          a.status
+          a.status,
+          a.qr_code
         FROM appointments a
         INNER JOIN students s ON a.student_id = s.id
         WHERE a.nurse_id = @nurse_id
@@ -820,4 +823,85 @@ router.get('/appointments-overview', authorizeRole(['nurse']), async (req, res) 
 });
 
 module.exports = router;
-module.exports = router;
+
+// Scan QR code for appointment check-in
+router.post('/scan-appointment-qr', authorizeRole(['nurse']), async (req, res) => {
+  try {
+    const { qrData } = req.body;
+    const userId = req.user.id;
+
+    const nurseId = await getNurseId(userId);
+
+    // Validate QR code
+    if (!validateQRCode(qrData)) {
+      return res.status(400).json({ message: 'Invalid or expired QR code' });
+    }
+
+    // Extract appointment ID from QR code
+    const appointmentId = extractAppointmentIdFromQR(qrData);
+    if (!appointmentId) {
+      return res.status(400).json({ message: 'Invalid QR code format' });
+    }
+
+    const pool = await poolPromise;
+
+    // Verify appointment belongs to this nurse and is valid for check-in
+    const appointmentRequest = pool.request();
+    const appointmentResult = await appointmentRequest
+      .input('appointment_id', sql.Int, appointmentId)
+      .input('nurse_id', sql.Int, nurseId)
+      .query(`
+        SELECT a.id, a.student_id, a.appointment_date, a.status, s.name as student_name, s.student_id as student_number
+        FROM appointments a
+        INNER JOIN students s ON a.student_id = s.id
+        WHERE a.id = @appointment_id AND a.nurse_id = @nurse_id
+      `);
+
+    if (appointmentResult.recordset.length === 0) {
+      return res.status(404).json({ message: 'Appointment not found or not assigned to you' });
+    }
+
+    const appointment = appointmentResult.recordset[0];
+
+    // Check if appointment is in valid status for check-in
+    if (!['confirmed', 'pending'].includes(appointment.status)) {
+      return res.status(400).json({ message: 'Appointment is not in a valid status for check-in' });
+    }
+
+    // Check if appointment is today
+    const today = new Date().toISOString().split('T')[0];
+    const appointmentDate = new Date(appointment.appointment_date).toISOString().split('T')[0];
+
+    if (appointmentDate !== today) {
+      return res.status(400).json({ message: 'Appointment is not scheduled for today' });
+    }
+
+    // Update appointment with check-in time
+    const checkInRequest = pool.request();
+    await checkInRequest
+      .input('appointment_id', sql.Int, appointmentId)
+      .query(`
+        UPDATE appointments
+        SET check_in_time = GETDATE(), qr_check_in = 1, status = 'confirmed'
+        WHERE id = @appointment_id
+      `);
+
+    res.json({
+      message: 'Student checked in successfully',
+      appointment: {
+        id: appointment.id,
+        studentName: appointment.student_name,
+        studentId: appointment.student_number,
+        appointmentDate: appointment.appointment_date,
+        status: 'confirmed'
+      }
+    });
+
+  } catch (error) {
+    console.error('Error processing QR scan:', error);
+    if (error.message === 'Nurse profile not found') {
+      return res.status(404).json({ message: error.message });
+    }
+    res.status(500).json({ message: 'Error processing QR scan' });
+  }
+});
