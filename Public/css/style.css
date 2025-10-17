@@ -934,6 +934,30 @@ input:checked + .toggle-slider:before {
     margin-bottom: 30px;
 }
 
+/* Availability Notice */
+.availability-notice {
+    background: #e3f2fd;
+    border: 1px solid #2196f3;
+    border-radius: 8px;
+    padding: 15px;
+    margin-bottom: 20px;
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+}
+
+.availability-notice i {
+    color: #2196f3;
+    font-size: 16px;
+    margin-top: 2px;
+}
+
+.availability-notice span {
+    color: #1565c0;
+    font-size: 14px;
+    line-height: 1.4;
+}
+
 .form-header {
     margin-bottom: 25px;
     padding-bottom: 15px;

@@ -338,7 +338,7 @@ router.post('/availability', authorizeRole(['nurse']), async (req, res) => {
     }
     // Handle unique constraint violation
     if (error.code === 'EREQUEST' && error.number === 2627) {
-      return res.status(409).json({ message: 'Availability for this date already exists. Please update the existing entry instead.' });
+      return res.status(409).json({ message: 'You already have availability set for this date. Please edit the existing schedule instead of creating a new one.' });
     }
     res.status(500).json({ message: 'Error saving availability' });
   }
