@@ -3,7 +3,7 @@ const router = express.Router();
 const { poolPromise, sql } = require('../db');
 const { authorizeRole } = require('../middleware/auth');
 const { generateQRCode } = require('../utils/qr');
-const { sendAppointmentStatusEmail } = require('../utils/mailer');
+const { sendAppointmentStatusEmail } = require('../Utils/mailer');
 
 // Helper function to get nurse ID from user ID
 async function getNurseId(userId) {
@@ -254,18 +254,18 @@ router.get('/availability', authorizeRole(['nurse']), async (req, res) => {
     const pool = await poolPromise;
 
     let query = `
-      SELECT id, nurse_id, date, start_time, end_time, maxPatients, is_available
+      SELECT id, nurse_id, availability_date, start_time, end_time, max_patients, is_available
       FROM nurse_availability
       WHERE nurse_id = @nurse_id
     `;
     let request = pool.request().input('nurse_id', sql.Int, nurseId);
 
     if (date) {
-      query += ' AND date = @date';
+      query += ' AND availability_date = @date';
       request = request.input('date', sql.Date, date);
     }
 
-    query += ' ORDER BY date, start_time';
+    query += ' ORDER BY availability_date, start_time';
 
     const result = await request.query(query);
     res.json(result.recordset);
@@ -294,40 +294,40 @@ router.post('/availability', authorizeRole(['nurse']), async (req, res) => {
       .input('date', sql.Date, date)
       .query(`
         SELECT id FROM nurse_availability
-        WHERE nurse_id = @nurse_id AND date = @date
+        WHERE nurse_id = @nurse_id AND availability_date = @date
       `);
 
     if (existing.recordset.length > 0) {
       // Update existing
       const updateRequest = pool.request();
-      await updateRequest
-        .input('id', sql.Int, existing.recordset[0].id)
-        .input('start_time', sql.VarChar, startTime)
-        .input('end_time', sql.VarChar, endTime)
-        .input('maxPatients', sql.Int, maxPatients)
-        .query(`
-          UPDATE nurse_availability
-          SET start_time = @start_time,
-              end_time = @end_time,
-              maxPatients = @maxPatients,
-              updated_at = GETDATE()
-          WHERE id = @id
-        `);
+        await updateRequest
+          .input('id', sql.Int, existing.recordset[0].id)
+          .input('start_time', sql.VarChar, startTime)
+          .input('end_time', sql.VarChar, endTime)
+          .input('max_patients', sql.Int, maxPatients)
+          .query(`
+            UPDATE nurse_availability
+            SET start_time = @start_time,
+                end_time = @end_time,
+                max_patients = @max_patients,
+                updated_at = GETDATE()
+            WHERE id = @id
+          `);
 
       res.json({ message: 'Availability updated successfully' });
     } else {
       // Create new
       const insertRequest = pool.request();
-      await insertRequest
-        .input('nurse_id', sql.Int, nurseId)
-        .input('date', sql.Date, date)
-        .input('start_time', sql.VarChar, startTime)
-        .input('end_time', sql.VarChar, endTime)
-        .input('maxPatients', sql.Int, maxPatients)
-        .query(`
-          INSERT INTO nurse_availability (nurse_id, date, start_time, end_time, maxPatients)
-          VALUES (@nurse_id, @date, @start_time, @end_time, @maxPatients)
-        `);
+       await insertRequest
+         .input('nurse_id', sql.Int, nurseId)
+         .input('availability_date', sql.Date, date)
+         .input('start_time', sql.VarChar, startTime)
+         .input('end_time', sql.VarChar, endTime)
+         .input('max_patients', sql.Int, maxPatients)
+         .query(`
+           INSERT INTO nurse_availability (nurse_id, availability_date, start_time, end_time, max_patients)
+           VALUES (@nurse_id, @availability_date, @start_time, @end_time, @max_patients)
+         `);
 
       res.status(201).json({ message: 'Availability created successfully' });
     }
@@ -335,6 +335,10 @@ router.post('/availability', authorizeRole(['nurse']), async (req, res) => {
     console.error('Error saving availability:', error);
     if (error.message === 'Nurse profile not found') {
       return res.status(404).json({ message: error.message });
+    }
+    // Handle unique constraint violation
+    if (error.code === 'EREQUEST' && error.number === 2627) {
+      return res.status(409).json({ message: 'Availability for this date already exists. Please update the existing entry instead.' });
     }
     res.status(500).json({ message: 'Error saving availability' });
   }
@@ -350,14 +354,14 @@ router.get('/availability/:id', authorizeRole(['nurse']), async (req, res) => {
     const pool = await poolPromise;
 
     const request = pool.request();
-    const result = await request
-      .input('id', sql.Int, id)
-      .input('nurse_id', sql.Int, nurseId)
-      .query(`
-        SELECT id, nurse_id, date, start_time, end_time, maxPatients, is_available
-        FROM nurse_availability
-        WHERE id = @id AND nurse_id = @nurse_id
-      `);
+     const result = await request
+       .input('id', sql.Int, id)
+       .input('nurse_id', sql.Int, nurseId)
+       .query(`
+         SELECT id, nurse_id, availability_date, start_time, end_time, max_patients, is_available
+         FROM nurse_availability
+         WHERE id = @id AND nurse_id = @nurse_id
+       `);
 
     if (result.recordset.length === 0) {
       return res.status(404).json({ message: 'Availability slot not found' });
@@ -381,6 +385,26 @@ router.delete('/availability/:id', authorizeRole(['nurse']), async (req, res) =>
 
     const nurseId = await getNurseId(userId);
     const pool = await poolPromise;
+
+    // First check if there are any appointments for this availability slot
+    const checkAppointmentsRequest = pool.request();
+    const appointmentsCheck = await checkAppointmentsRequest
+      .input('id', sql.Int, id)
+      .input('nurse_id', sql.Int, nurseId)
+      .query(`
+        SELECT COUNT(*) as appointment_count
+        FROM appointments a
+        INNER JOIN nurse_availability na ON a.nurse_id = na.nurse_id
+          AND CAST(a.appointment_date AS DATE) = na.availability_date
+          AND a.appointment_date >= DATEADD(hour, DATEPART(hour, na.start_time), DATEADD(minute, DATEPART(minute, na.start_time), CAST(CAST(a.appointment_date AS DATE) AS DATETIME2)))
+          AND a.appointment_date < DATEADD(hour, DATEPART(hour, na.end_time), DATEADD(minute, DATEPART(minute, na.end_time), CAST(CAST(a.appointment_date AS DATE) AS DATETIME2)))
+        WHERE na.id = @id AND na.nurse_id = @nurse_id
+          AND a.status IN ('pending', 'confirmed')
+      `);
+
+    if (appointmentsCheck.recordset[0].appointment_count > 0) {
+      return res.status(409).json({ message: 'Cannot delete availability slot with existing appointments. Please cancel all appointments first.' });
+    }
 
     const request = pool.request();
     const result = await request
@@ -519,6 +543,7 @@ router.put('/appointments/:id/status', authorizeRole(['nurse']), async (req, res
       const studentEmailRequest = pool.request();
       const studentEmailResult = await studentEmailRequest
         .input('student_id', sql.Int, appointment.student_id)
+        .input('appointment_id', sql.Int, appointmentId)
         .query(`
           SELECT u.email, s.name as student_name, n.name as nurse_name, a.reason
           FROM students s
@@ -558,4 +583,241 @@ router.put('/appointments/:id/status', authorizeRole(['nurse']), async (req, res
   }
 });
 
+// Get nurse dashboard statistics
+router.get('/dashboard-stats', authorizeRole(['nurse']), async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const nurseId = await getNurseId(userId);
+    const pool = await poolPromise;
+
+    // Get today's appointments
+    const todayAppointmentsRequest = pool.request();
+    const todayAppointmentsResult = await todayAppointmentsRequest
+      .input('nurse_id', sql.Int, nurseId)
+      .input('today', sql.Date, new Date().toISOString().split('T')[0])
+      .query(`
+        SELECT COUNT(*) as count
+        FROM appointments
+        WHERE nurse_id = @nurse_id
+          AND CAST(appointment_date AS DATE) = @today
+          AND status IN ('confirmed', 'pending')
+      `);
+
+    // Get pending records (medical records that need attention)
+    const pendingRecordsRequest = pool.request();
+    const pendingRecordsResult = await pendingRecordsRequest
+      .input('nurse_id', sql.Int, nurseId)
+      .query(`
+        SELECT COUNT(*) as count
+        FROM medical_records mr
+        JOIN appointments a ON mr.appointment_id = a.id
+        WHERE a.nurse_id = @nurse_id
+          AND mr.follow_up_required = 1
+          AND (mr.follow_up_date IS NULL OR mr.follow_up_date >= GETDATE())
+      `);
+
+    // Get total students assigned to this nurse
+    const totalStudentsRequest = pool.request();
+    const totalStudentsResult = await totalStudentsRequest
+      .input('nurse_id', sql.Int, nurseId)
+      .query(`
+        SELECT COUNT(*) as count
+        FROM nurse_students
+        WHERE nurse_id = @nurse_id AND is_active = 1
+      `);
+
+    // Get available slots for today
+     const availableSlotsRequest = pool.request();
+     const availableSlotsResult = await availableSlotsRequest
+       .input('nurse_id', sql.Int, nurseId)
+       .input('today', sql.Date, new Date().toISOString().split('T')[0])
+       .query(`
+         SELECT ISNULL(SUM(max_patients), 0) as total_slots
+         FROM nurse_availability
+         WHERE nurse_id = @nurse_id
+           AND availability_date = @today
+           AND is_available = 1
+       `);
+
+    // Get weekly appointments (last 7 days)
+    const weeklyAppointmentsRequest = pool.request();
+    const weeklyAppointmentsResult = await weeklyAppointmentsRequest
+      .input('nurse_id', sql.Int, nurseId)
+      .query(`
+        SELECT COUNT(*) as count
+        FROM appointments
+        WHERE nurse_id = @nurse_id
+          AND appointment_date >= DATEADD(day, -7, GETDATE())
+          AND status IN ('confirmed', 'completed')
+      `);
+
+    // Get student visits (unique students seen in last 30 days)
+    const studentVisitsRequest = pool.request();
+    const studentVisitsResult = await studentVisitsRequest
+      .input('nurse_id', sql.Int, nurseId)
+      .query(`
+        SELECT COUNT(DISTINCT student_id) as count
+        FROM appointments
+        WHERE nurse_id = @nurse_id
+          AND appointment_date >= DATEADD(day, -30, GETDATE())
+          AND status IN ('confirmed', 'completed')
+      `);
+
+    // Get average daily appointments (last 30 days)
+    const avgDailyAppointmentsRequest = pool.request();
+    const avgDailyAppointmentsResult = await avgDailyAppointmentsRequest
+      .input('nurse_id', sql.Int, nurseId)
+      .query(`
+        SELECT ISNULL(AVG(daily_count), 0) as average
+        FROM (
+          SELECT CAST(appointment_date AS DATE) as date, COUNT(*) as daily_count
+          FROM appointments
+          WHERE nurse_id = @nurse_id
+            AND appointment_date >= DATEADD(day, -30, GETDATE())
+            AND status IN ('confirmed', 'completed')
+          GROUP BY CAST(appointment_date AS DATE)
+        ) daily_stats
+      `);
+
+    // Get monthly trend (percentage change from previous month)
+    const monthlyTrendRequest = pool.request();
+    const monthlyTrendResult = await monthlyTrendRequest
+      .input('nurse_id', sql.Int, nurseId)
+      .query(`
+        WITH monthly_stats AS (
+          SELECT
+            YEAR(appointment_date) as year,
+            MONTH(appointment_date) as month,
+            COUNT(*) as appointment_count
+          FROM appointments
+          WHERE nurse_id = @nurse_id
+            AND appointment_date >= DATEADD(month, -2, GETDATE())
+            AND status IN ('confirmed', 'completed')
+          GROUP BY YEAR(appointment_date), MONTH(appointment_date)
+        ),
+        current_month AS (
+          SELECT appointment_count
+          FROM monthly_stats
+          WHERE year = YEAR(GETDATE()) AND month = MONTH(GETDATE())
+        ),
+        previous_month AS (
+          SELECT appointment_count
+          FROM monthly_stats
+          WHERE year = YEAR(DATEADD(month, -1, GETDATE()))
+            AND month = MONTH(DATEADD(month, -1, GETDATE()))
+        )
+        SELECT
+          CASE
+            WHEN prev.appointment_count = 0 THEN 100.0
+            WHEN prev.appointment_count IS NULL THEN 100.0
+            ELSE ((curr.appointment_count - prev.appointment_count) * 100.0 / prev.appointment_count)
+          END as trend_percentage
+        FROM current_month curr
+        CROSS JOIN previous_month prev
+      `);
+
+    const stats = {
+      todayAppointments: todayAppointmentsResult.recordset[0].count,
+      pendingRecords: pendingRecordsResult.recordset[0].count,
+      totalStudents: totalStudentsResult.recordset[0].count,
+      availableSlots: availableSlotsResult.recordset[0].total_slots,
+      weeklyAppointments: weeklyAppointmentsResult.recordset[0].count,
+      studentVisits: studentVisitsResult.recordset[0].count,
+      avgDailyAppointments: Math.round(avgDailyAppointmentsResult.recordset[0].average * 10) / 10,
+      monthlyTrend: Math.round(monthlyTrendResult.recordset[0]?.trend_percentage || 0)
+    };
+
+    res.json(stats);
+  } catch (error) {
+    console.error('Error fetching dashboard stats:', error);
+    if (error.message === 'Nurse profile not found') {
+      return res.status(404).json({ message: error.message });
+    }
+    res.status(500).json({ message: 'Error fetching dashboard statistics' });
+  }
+});
+
+// Get recent appointments overview
+router.get('/appointments-overview', authorizeRole(['nurse']), async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const nurseId = await getNurseId(userId);
+    const pool = await poolPromise;
+
+    // Get upcoming appointments (next 7 days)
+    const upcomingRequest = pool.request();
+    const upcomingResult = await upcomingRequest
+      .input('nurse_id', sql.Int, nurseId)
+      .query(`
+        SELECT TOP 5
+          a.id,
+          s.name as student_name,
+          s.student_id,
+          a.appointment_date,
+          a.reason,
+          a.status
+        FROM appointments a
+        INNER JOIN students s ON a.student_id = s.id
+        WHERE a.nurse_id = @nurse_id
+          AND a.appointment_date >= GETDATE()
+          AND a.appointment_date <= DATEADD(day, 7, GETDATE())
+          AND a.status IN ('confirmed', 'pending')
+        ORDER BY a.appointment_date ASC
+      `);
+
+    // Get today's appointments
+    const todayRequest = pool.request();
+    const todayResult = await todayRequest
+      .input('nurse_id', sql.Int, nurseId)
+      .input('today', sql.Date, new Date().toISOString().split('T')[0])
+      .query(`
+        SELECT
+          a.id,
+          s.name as student_name,
+          s.student_id,
+          a.appointment_date,
+          a.reason,
+          a.status
+        FROM appointments a
+        INNER JOIN students s ON a.student_id = s.id
+        WHERE a.nurse_id = @nurse_id
+          AND CAST(a.appointment_date AS DATE) = @today
+          AND a.status IN ('confirmed', 'pending')
+        ORDER BY a.appointment_date ASC
+      `);
+
+    // Get appointment status summary
+    const statusSummaryRequest = pool.request();
+    const statusSummaryResult = await statusSummaryRequest
+      .input('nurse_id', sql.Int, nurseId)
+      .query(`
+        SELECT
+          status,
+          COUNT(*) as count
+        FROM appointments
+        WHERE nurse_id = @nurse_id
+          AND appointment_date >= DATEADD(day, -30, GETDATE())
+        GROUP BY status
+      `);
+
+    const overview = {
+      upcoming: upcomingResult.recordset,
+      today: todayResult.recordset,
+      statusSummary: statusSummaryResult.recordset.reduce((acc, curr) => {
+        acc[curr.status] = curr.count;
+        return acc;
+      }, {})
+    };
+
+    res.json(overview);
+  } catch (error) {
+    console.error('Error fetching appointments overview:', error);
+    if (error.message === 'Nurse profile not found') {
+      return res.status(404).json({ message: error.message });
+    }
+    res.status(500).json({ message: 'Error fetching appointments overview' });
+  }
+});
+
+module.exports = router;
 module.exports = router;

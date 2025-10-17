@@ -81,6 +81,30 @@
                     </div>
                 </div>
                 <div class="stat-card">
+                    <div class="stat-icon"><i class="fas fa-calendar-week"></i></div>
+                    <div class="stat-content">
+                        <h3>Weekly Appointments</h3>
+                        <p id="weeklyAppointments">0</p>
+                        <small class="stat-change positive">Last 7 days</small>
+                    </div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-icon"><i class="fas fa-user-check"></i></div>
+                    <div class="stat-content">
+                        <h3>Student Visits</h3>
+                        <p id="studentVisits">0</p>
+                        <small class="stat-change neutral">Last 30 days</small>
+                    </div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-icon"><i class="fas fa-chart-line"></i></div>
+                    <div class="stat-content">
+                        <h3>Avg Daily Appointments</h3>
+                        <p id="avgDailyAppointments">0</p>
+                        <small class="stat-change neutral">Last 30 days</small>
+                    </div>
+                </div>
+                <div class="stat-card">
                     <div class="stat-icon"><i class="fas fa-file-medical-alt"></i></div>
                     <div class="stat-content">
                         <h3>Pending Records</h3>
@@ -99,6 +123,63 @@
                     <div class="stat-content">
                         <h3>Available Slots</h3>
                         <p id="availableSlots">0</p>
+                    </div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-icon"><i class="fas fa-trending-up"></i></div>
+                    <div class="stat-content">
+                        <h3>Monthly Trend</h3>
+                        <p id="monthlyTrend">0%</p>
+                        <small class="stat-change" id="trendIndicator">vs last month</small>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Appointments Overview -->
+            <div class="appointments-overview">
+                <div class="overview-header">
+                    <h3>Appointments Overview</h3>
+                    <a href="nurse_appointments.html" class="view-all-link">View All</a>
+                </div>
+
+                <div class="overview-content">
+                    <!-- Today's Appointments -->
+                    <div class="overview-section">
+                        <h4>Today's Schedule</h4>
+                        <div class="appointments-list" id="todayAppointmentsList">
+                            <div class="no-appointments">No appointments scheduled for today</div>
+                        </div>
+                    </div>
+
+                    <!-- Upcoming Appointments -->
+                    <div class="overview-section">
+                        <h4>Upcoming (Next 7 Days)</h4>
+                        <div class="appointments-list" id="upcomingAppointmentsList">
+                            <div class="no-appointments">No upcoming appointments</div>
+                        </div>
+                    </div>
+
+                    <!-- Status Summary -->
+                    <div class="overview-section">
+                        <h4>Status Summary (Last 30 Days)</h4>
+                        <div class="status-summary">
+                            <div class="status-item">
+                                <span class="status-label">Confirmed</span>
+                                <span class="status-count" id="confirmedCount">0</span>
+                            </div>
+                            <div class="status-item">
+                                <span class="status-label">Pending</span>
+                                <span class="status-count" id="pendingCount">0</span>
+                            </div>
+                            <div class="status-item">
+                                <span class="status-label">Completed</span>
+                                <span class="status-count" id="completedCount">0</span>
+                            </div>
+                            <div class="status-item">
+                                <span class="status-label">Cancelled</span>
+                                <span class="status-count" id="cancelledCount">0</span>
+                            </div>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -175,17 +256,123 @@
         });
 
         // Load dashboard statistics
-        function loadDashboardStats() {
-            // This would typically fetch data from your backend
-            // For now, we'll use placeholder data
+        async function loadDashboardStats() {
+            try {
+                const response = await fetch('/api/nurse/dashboard-stats', {
+                    method: 'GET',
+                    credentials: 'include'
+                });
+
+                if (response.ok) {
+                    const stats = await response.json();
+
+                    // Update statistics cards
+                    document.getElementById('todayAppointments').textContent = stats.todayAppointments;
+                    document.getElementById('weeklyAppointments').textContent = stats.weeklyAppointments;
+                    document.getElementById('studentVisits').textContent = stats.studentVisits;
+                    document.getElementById('avgDailyAppointments').textContent = stats.avgDailyAppointments;
+                    document.getElementById('pendingRecords').textContent = stats.pendingRecords;
+                    document.getElementById('totalStudents').textContent = stats.totalStudents;
+                    document.getElementById('availableSlots').textContent = stats.availableSlots;
+
+                    // Update monthly trend with appropriate styling
+                    const trendElement = document.getElementById('monthlyTrend');
+                    const trendIndicator = document.getElementById('trendIndicator');
+                    const trendValue = stats.monthlyTrend;
+
+                    trendElement.textContent = trendValue + '%';
+                    trendIndicator.className = 'stat-change';
+
+                    if (trendValue > 0) {
+                        trendIndicator.classList.add('positive');
+                    } else if (trendValue < 0) {
+                        trendIndicator.classList.add('negative');
+                    } else {
+                        trendIndicator.classList.add('neutral');
+                    }
+                } else {
+                    console.error('Failed to load dashboard stats');
+                    // Fallback to placeholder data
+                    setPlaceholderStats();
+                }
+            } catch (error) {
+                console.error('Error loading dashboard stats:', error);
+                // Fallback to placeholder data
+                setPlaceholderStats();
+            }
+        }
+
+        // Fallback placeholder data
+        function setPlaceholderStats() {
             document.getElementById('todayAppointments').textContent = '12';
+            document.getElementById('weeklyAppointments').textContent = '45';
+            document.getElementById('studentVisits').textContent = '32';
+            document.getElementById('avgDailyAppointments').textContent = '2.1';
             document.getElementById('pendingRecords').textContent = '5';
             document.getElementById('totalStudents').textContent = '245';
             document.getElementById('availableSlots').textContent = '8';
+            document.getElementById('monthlyTrend').textContent = '+15%';
+            document.getElementById('trendIndicator').className = 'stat-change positive';
         }
 
-        // Load stats on page load
+        // Load appointments overview
+        async function loadAppointmentsOverview() {
+            try {
+                const response = await fetch('/api/nurse/appointments-overview', {
+                    method: 'GET',
+                    credentials: 'include'
+                });
+
+                if (response.ok) {
+                    const overview = await response.json();
+
+                    // Update today's appointments
+                    updateAppointmentsList('todayAppointmentsList', overview.today);
+
+                    // Update upcoming appointments
+                    updateAppointmentsList('upcomingAppointmentsList', overview.upcoming);
+
+                    // Update status summary
+                    document.getElementById('confirmedCount').textContent = overview.statusSummary.confirmed || 0;
+                    document.getElementById('pendingCount').textContent = overview.statusSummary.pending || 0;
+                    document.getElementById('completedCount').textContent = overview.statusSummary.completed || 0;
+                    document.getElementById('cancelledCount').textContent = overview.statusSummary.cancelled || 0;
+                } else {
+                    console.error('Failed to load appointments overview');
+                }
+            } catch (error) {
+                console.error('Error loading appointments overview:', error);
+            }
+        }
+
+        // Helper function to update appointments list
+        function updateAppointmentsList(containerId, appointments) {
+            const container = document.getElementById(containerId);
+
+            if (appointments && appointments.length > 0) {
+                const appointmentsHtml = appointments.map(appointment => `
+                    <div class="appointment-item">
+                        <div class="appointment-info">
+                            <div class="student-name">${appointment.student_name}</div>
+                            <div class="student-id">${appointment.student_id}</div>
+                            <div class="appointment-time">${new Date(appointment.appointment_date).toLocaleString()}</div>
+                            <div class="appointment-reason">${appointment.reason || 'No reason specified'}</div>
+                        </div>
+                        <div class="appointment-status status-${appointment.status}">
+                            ${appointment.status.charAt(0).toUpperCase() + appointment.status.slice(1)}
+                        </div>
+                    </div>
+                `).join('');
+
+                container.innerHTML = appointmentsHtml;
+            } else {
+                container.innerHTML = '<div class="no-appointments">No appointments found</div>';
+            }
+        }
+
+        // Load stats and overview on page load
         loadDashboardStats();
+        loadAppointmentsOverview();
     </script>
 </body>
 </html>

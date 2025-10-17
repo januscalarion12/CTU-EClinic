@@ -2225,4 +2225,210 @@ input:checked + .toggle-slider:before {
     color: #6c757d;
     font-weight: 500;
 }
+/* Appointments Overview */
+.appointments-overview {
+    background: white;
+    padding: 30px;
+    border-radius: 12px;
+    box-shadow: 0 4px 20px rgba(0,0,0,0.08);
+    margin-bottom: 40px;
+}
+
+.overview-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 25px;
+    padding-bottom: 15px;
+    border-bottom: 1px solid #eee;
+}
+
+.overview-header h3 {
+    margin: 0;
+    color: var(--ctu-primary);
+    font-size: 1.4rem;
+    font-weight: 600;
+}
+
+.view-all-link {
+    color: var(--ctu-primary);
+    text-decoration: none;
+    font-weight: 500;
+    font-size: 0.9rem;
+    transition: color 0.3s ease;
+}
+
+.view-all-link:hover {
+    color: var(--ctu-secondary);
+    text-decoration: underline;
+}
+
+.overview-content {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 30px;
+}
+
+.overview-section {
+    background: #f8f9fa;
+    padding: 20px;
+    border-radius: 8px;
+    border-left: 4px solid var(--ctu-primary);
+}
+
+.overview-section h4 {
+    margin: 0 0 15px 0;
+    color: var(--ctu-primary);
+    font-size: 1.1rem;
+    font-weight: 600;
+}
+
+.appointments-list {
+    max-height: 300px;
+    overflow-y: auto;
+}
+
+.appointment-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    padding: 15px;
+    background: white;
+    border-radius: 6px;
+    margin-bottom: 10px;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+    transition: all 0.3s ease;
+}
+
+.appointment-item:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 3px 8px rgba(0,0,0,0.15);
+}
+
+.appointment-item:last-child {
+    margin-bottom: 0;
+}
+
+.appointment-info {
+    flex: 1;
+}
+
+.student-name {
+    font-weight: 600;
+    color: var(--ctu-primary);
+    margin-bottom: 4px;
+    font-size: 0.95rem;
+}
+
+.student-id {
+    color: #6c757d;
+    font-size: 0.85rem;
+    margin-bottom: 4px;
+}
+
+.appointment-time {
+    color: #333;
+    font-size: 0.9rem;
+    font-weight: 500;
+    margin-bottom: 4px;
+}
+
+.appointment-reason {
+    color: #6c757d;
+    font-size: 0.85rem;
+    font-style: italic;
+}
+
+.appointment-status {
+    padding: 4px 8px;
+    border-radius: 12px;
+    font-size: 0.75rem;
+    font-weight: 600;
+    text-transform: uppercase;
+}
+
+.status-confirmed {
+    background-color: #d4edda;
+    color: #155724;
+}
+
+.status-pending {
+    background-color: #fff3cd;
+    color: #856404;
+}
+
+.status-completed {
+    background-color: #d1ecf1;
+    color: #0c5460;
+}
+
+.status-cancelled {
+    background-color: #f8d7da;
+    color: #721c24;
+}
+
+.status-no_show {
+    background-color: #e2e3e5;
+    color: #383d41;
+}
+
+.no-appointments {
+    text-align: center;
+    color: #6c757d;
+    font-style: italic;
+    padding: 20px;
+}
+
+.status-summary {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 10px;
+}
+
+.status-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 8px 12px;
+    background: white;
+    border-radius: 6px;
+    box-shadow: 0 1px 2px rgba(0,0,0,0.05);
+}
+
+.status-label {
+    font-weight: 500;
+    color: #333;
+    font-size: 0.9rem;
+}
+
+.status-count {
+    font-weight: 600;
+    color: var(--ctu-primary);
+    font-size: 1rem;
+}
+
+/* Responsive adjustments for appointments overview */
+@media (max-width: 768px) {
+    .overview-content {
+        grid-template-columns: 1fr;
+        gap: 20px;
+    }
+
+    .appointments-overview {
+        padding: 20px;
+    }
+
+    .appointment-item {
+        flex-direction: column;
+        gap: 10px;
+    }
+
+    .appointment-status {
+        align-self: flex-start;
+    }
+
+    .status-summary {
+        grid-template-columns: 1fr;
+    }
+}
 }

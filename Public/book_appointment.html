@@ -48,7 +48,7 @@
                 <li><a href="medical-records.html"><span class="nav-icon"><i class="fas fa-file-medical"></i></span><span class="nav-text">Medical Records</span></a></li>
                 <li><a href="profile.html"><span class="nav-icon"><i class="fas fa-user"></i></span><span class="nav-text">Profile</span></a></li>
                 <li><a href="notifications.html"><span class="nav-icon"><i class="fas fa-bell"></i></span><span class="nav-text">Notifications</span></a></li>
-                <li><a href="#" id="logout"><span class="nav-icon"><i class="fas fa-sign-out-alt"></i></span><span class="nav-text">Logout</span></a></li>
+                
             </ul>
         </div>
     </nav>
@@ -73,9 +73,15 @@
                         <div id="dateAvailability" class="availability-info"></div>
                     </div>
                     <div class="form-group">
+                        <label for="nurseSelect">Select Nurse</label>
+                        <select id="nurseSelect" name="nurseSelect" required>
+                            <option value="">Select Date First</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
                         <label for="appointmentTime">Available Time Slots</label>
                         <select id="appointmentTime" name="appointmentTime" required>
-                            <option value="">Select Date First</option>
+                            <option value="">Select Nurse First</option>
                         </select>
                     </div>
                     <div class="form-group">
@@ -133,17 +139,24 @@
             e.preventDefault();
 
             const formData = new FormData(this);
-            const selectedTimeOption = document.querySelector('#appointmentTime option:checked');
-            const nurseId = selectedTimeOption ? selectedTimeOption.getAttribute('data-nurse-id') : null;
+            const nurseId = formData.get('nurseSelect');
+            const appointmentTime = formData.get('appointmentTime');
 
-            if (!nurseId) {
-                alert('Please select a time slot');
+            if (!nurseId || !appointmentTime) {
+                alert('Please select a nurse and time slot');
+                return;
+            }
+
+            // Check if selected time slot is available
+            const selectedOption = document.querySelector('#appointmentTime option:checked');
+            if (selectedOption && selectedOption.disabled) {
+                alert('This time slot is fully booked. Please select a different time.');
                 return;
             }
 
             const appointmentData = {
                 nurseId: parseInt(nurseId),
-                appointmentDate: formData.get('appointmentDate') + 'T' + formData.get('appointmentTime'),
+                appointmentDate: formData.get('appointmentDate') + 'T' + appointmentTime,
                 reason: formData.get('reason')
             };
 
@@ -151,9 +164,9 @@
                 const response = await fetch('/api/student/bookings', {
                     method: 'POST',
                     headers: {
-                        'Content-Type': 'application/json',
-                        'Authorization': `Bearer ${localStorage.getItem('token')}`
+                        'Content-Type': 'application/json'
                     },
+                    credentials: 'include', // Use session cookies instead of localStorage
                     body: JSON.stringify(appointmentData)
                 });
 
@@ -161,7 +174,7 @@
                     const result = await response.json();
                     alert('Appointment booked successfully! Your appointment is pending nurse approval.');
                     this.reset();
-                    resetTimeSlots();
+                    resetForm();
                 } else {
                     const error = await response.json();
                     alert('Error booking appointment: ' + error.message);
@@ -176,22 +189,32 @@
         document.getElementById('appointmentDate').addEventListener('change', async function() {
             const selectedDate = this.value;
             if (selectedDate) {
-                await loadAvailableSlots(selectedDate);
+                await loadAvailableNurses(selectedDate);
+            } else {
+                resetForm();
+            }
+        });
+
+        // Nurse change handler
+        document.getElementById('nurseSelect').addEventListener('change', async function() {
+            const selectedNurseId = this.value;
+            const selectedDate = document.getElementById('appointmentDate').value;
+            if (selectedNurseId && selectedDate) {
+                await loadAvailableSlots(selectedNurseId, selectedDate);
             } else {
                 resetTimeSlots();
             }
         });
 
-        // Load available time slots for selected date
-        async function loadAvailableSlots(date) {
-            const timeSelect = document.getElementById('appointmentTime');
+        // Load available nurses for selected date
+        async function loadAvailableNurses(date) {
+            const nurseSelect = document.getElementById('nurseSelect');
             const availabilityInfo = document.getElementById('dateAvailability');
 
             try {
                 const response = await fetch(`/api/student/availability?date=${date}`, {
-                    headers: {
-                        'Authorization': `Bearer ${localStorage.getItem('token')}`
-                    }
+                    method: 'GET',
+                    credentials: 'include' // Use session cookies instead of localStorage
                 });
 
                 if (response.ok) {
@@ -199,33 +222,85 @@
 
                     if (slots.length === 0) {
                         availabilityInfo.innerHTML = '<span class="no-availability">No nurses available on this date</span>';
-                        timeSelect.innerHTML = '<option value="">No slots available</option>';
-                        timeSelect.disabled = true;
+                        nurseSelect.innerHTML = '<option value="">No nurses available</option>';
+                        nurseSelect.disabled = true;
+                        resetTimeSlots();
                         return;
                     }
 
-                    availabilityInfo.innerHTML = `<span class="available-info">${slots.length} nurse(s) available</span>`;
+                    // Get unique nurses
+                    const uniqueNurses = [];
+                    const nurseMap = new Map();
 
-                    // Generate time slots from nurse availability
-                    const timeSlots = generateTimeSlots(slots);
-                    timeSelect.innerHTML = '<option value="">Select Time</option>' +
-                        timeSlots.map(slot => `<option value="${slot.value}" data-nurse-id="${slot.nurseId}">${slot.label}</option>`).join('');
-                    timeSelect.disabled = false;
+                    slots.forEach(slot => {
+                        if (!nurseMap.has(slot.nurse_id)) {
+                            nurseMap.set(slot.nurse_id, slot.nurse_name);
+                            uniqueNurses.push({
+                                id: slot.nurse_id,
+                                name: slot.nurse_name
+                            });
+                        }
+                    });
+
+                    availabilityInfo.innerHTML = `<span class="available-info">${uniqueNurses.length} nurse(s) available</span>`;
+
+                    nurseSelect.innerHTML = '<option value="">Select Nurse</option>' +
+                        uniqueNurses.map(nurse => `<option value="${nurse.id}">${nurse.name}</option>`).join('');
+                    nurseSelect.disabled = false;
 
                 } else if (response.status === 403) {
                     availabilityInfo.innerHTML = '<span class="error-info">Session expired. Please login again.</span>';
-                    resetTimeSlots();
+                    resetForm();
                     localStorage.removeItem('token');
                     localStorage.removeItem('user');
                     setTimeout(() => window.location.href = 'login.html', 2000);
                 } else {
                     availabilityInfo.innerHTML = '<span class="error-info">Error loading availability</span>';
-                    resetTimeSlots();
+                    resetForm();
                 }
             } catch (error) {
                 console.error('Error loading availability:', error);
                 availabilityInfo.innerHTML = '<span class="error-info">Error loading availability</span>';
-                resetTimeSlots();
+                resetForm();
+            }
+        }
+
+        // Load available time slots for selected nurse and date
+        async function loadAvailableSlots(nurseId, date) {
+            const timeSelect = document.getElementById('appointmentTime');
+
+            try {
+                const response = await fetch(`/api/student/availability?date=${date}`, {
+                    method: 'GET',
+                    credentials: 'include' // Use session cookies instead of localStorage
+                });
+
+                if (response.ok) {
+                    const slots = await response.json();
+
+                    // Filter slots for the selected nurse
+                    const nurseSlots = slots.filter(slot => slot.nurse_id == nurseId);
+
+                    if (nurseSlots.length === 0) {
+                        timeSelect.innerHTML = '<option value="">No slots available</option>';
+                        timeSelect.disabled = true;
+                        return;
+                    }
+
+                    // Generate time slots from nurse availability
+                    const timeSlots = generateTimeSlots(nurseSlots);
+                    timeSelect.innerHTML = '<option value="">Select Time</option>' +
+                        timeSlots.map(slot => `<option value="${slot.value}" ${!slot.available ? 'disabled style="color: #999;"' : ''}>${slot.label}${!slot.available ? ' (FULLY BOOKED)' : ''}</option>`).join('');
+                    timeSelect.disabled = false;
+
+                } else {
+                    timeSelect.innerHTML = '<option value="">Error loading slots</option>';
+                    timeSelect.disabled = true;
+                }
+            } catch (error) {
+                console.error('Error loading slots:', error);
+                timeSelect.innerHTML = '<option value="">Error loading slots</option>';
+                timeSelect.disabled = true;
             }
         }
 
@@ -244,7 +319,8 @@
 
                     if (slotEnd <= endTime) {
                         const timeValue = currentTime.toTimeString().slice(0, 5);
-                        const timeLabel = `${slot.nurse_name}: ${currentTime.toLocaleTimeString('en-US', {
+                        const availableSlots = slot.max_patients - slot.booked_slots;
+                        const timeLabel = `${currentTime.toLocaleTimeString('en-US', {
                             hour: 'numeric',
                             minute: '2-digit',
                             hour12: true
@@ -252,12 +328,14 @@
                             hour: 'numeric',
                             minute: '2-digit',
                             hour12: true
-                        })} (${slot.booked_slots}/${slot.max_patients} booked)`;
+                        })} (${availableSlots} slots available)`;
 
+                        // Add all slots but mark unavailable ones
                         slots.push({
                             value: timeValue,
                             label: timeLabel,
-                            nurseId: slot.nurse_id
+                            nurseId: slot.nurse_id,
+                            available: availableSlots > 0
                         });
                     }
 
@@ -270,8 +348,15 @@
 
         function resetTimeSlots() {
             const timeSelect = document.getElementById('appointmentTime');
-            timeSelect.innerHTML = '<option value="">Select Date First</option>';
+            timeSelect.innerHTML = '<option value="">Select Nurse First</option>';
             timeSelect.disabled = true;
+        }
+
+        function resetForm() {
+            const nurseSelect = document.getElementById('nurseSelect');
+            nurseSelect.innerHTML = '<option value="">Select Date First</option>';
+            nurseSelect.disabled = true;
+            resetTimeSlots();
         }
 
         // Initialize on page load
@@ -280,7 +365,7 @@
             const today = new Date().toISOString().split('T')[0];
             document.getElementById('appointmentDate').setAttribute('min', today);
 
-            resetTimeSlots();
+            resetForm();
         });
     </script>
 </body>

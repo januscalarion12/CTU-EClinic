@@ -169,9 +169,8 @@
         async function loadAppointmentStats() {
             try {
                 const response = await fetch('/api/nurse/appointments', {
-                    headers: {
-                        'Authorization': `Bearer ${localStorage.getItem('token')}`
-                    }
+                    method: 'GET',
+                    credentials: 'include' // Use session cookies instead of localStorage
                 });
 
                 if (response.ok) {
@@ -211,9 +210,8 @@
                 if (params.toString()) url += '?' + params.toString();
 
                 const response = await fetch(url, {
-                    headers: {
-                        'Authorization': `Bearer ${localStorage.getItem('token')}`
-                    }
+                    method: 'GET',
+                    credentials: 'include' // Use session cookies instead of localStorage
                 });
 
                 if (response.ok) {
@@ -264,9 +262,9 @@
                 const response = await fetch(`/api/nurse/appointments/${appointmentId}/status`, {
                     method: 'PUT',
                     headers: {
-                        'Content-Type': 'application/json',
-                        'Authorization': `Bearer ${localStorage.getItem('token')}`
+                        'Content-Type': 'application/json'
                     },
+                    credentials: 'include', // Use session cookies instead of localStorage
                     body: JSON.stringify({ status, notes })
                 });
 

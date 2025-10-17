@@ -1,11 +1,11 @@
 const sql = require('mssql');
 
 const config = {
-  server: process.env.DB_HOST || 'localhost',
+  server: process.env.DB_HOST || 'LAPTOP-CO8MFUK2\SQLEXPRESS',
   port: parseInt(process.env.DB_PORT) || 1433,
-  user: process.env.DB_USER || 'sa',
-  password: process.env.DB_PASSWORD || '',
-  database: process.env.DB_NAME || 'clinic_db',
+  user: process.env.DB_USER || 'eclinic',
+  password: process.env.DB_PASSWORD || 'Eclinic2025@',
+  database: process.env.DB_NAME || 'CTU_ClinicDB',
   options: {
     encrypt: true, // Use encryption
     trustServerCertificate: true, // For local development

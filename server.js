@@ -17,11 +17,11 @@ const app = express();
 // Session configuration
 const sessionConfig = {
   store: new MSSQLStore({
-    server: process.env.DB_HOST || 'localhost',
+    server: process.env.DB_HOST || 'LAPTOP-CO8MFUK2\SQLEXPRESS',
     port: parseInt(process.env.DB_PORT) || 1433,
-    user: process.env.DB_USER || 'sa',
-    password: process.env.DB_PASSWORD || '',
-    database: process.env.DB_NAME || 'clinic_db',
+    user: process.env.DB_USER || 'eclinic',
+    password: process.env.DB_PASSWORD || 'Eclinic2025@',
+    database: process.env.DB_NAME || 'CTU_ClinicDB',
     options: {
       encrypt: true,
       trustServerCertificate: true,
@@ -31,7 +31,7 @@ const sessionConfig = {
     ttl: 86400000, // 24 hours
     autoRemove: 'interval',
     autoRemoveInterval: 3600000, // 1 hour
-    createDatabaseTable: true // Enable automatic table creation
+    createDatabaseTable: false // Disable automatic table creation
   }),
   secret: process.env.SESSION_SECRET || 'your-session-secret-key',
   resave: false,
@@ -39,7 +39,7 @@ const sessionConfig = {
   cookie: {
     secure: false, // Set to true in production with HTTPS
     httpOnly: true,
-    maxAge: 24 * 60 * 60 * 1000 // 24 hours
+    maxAge: 7 * 24 * 60 * 60 * 1000 // 7 days
   }
 };
 
@@ -58,6 +58,7 @@ app.use('/api/auth', authRoutes);
 app.use('/api/admin', authenticateToken, adminRoutes);
 app.use('/api/nurse', authenticateToken, nurseRoutes);
 app.use('/api/student', authenticateToken, studentRoutes);
+app.use('/api/students', authenticateToken, studentRoutes);
 
 // Serve static files
 app.get('/', (req, res) => {
@@ -66,6 +67,9 @@ app.get('/', (req, res) => {
 
 // Error handling middleware
 app.use((err, req, res, next) => {
+  if (res.headersSent) {
+    return next(err);
+  }
   console.error(err.stack);
   res.status(500).send('Something broke!');
 });

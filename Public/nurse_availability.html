@@ -173,9 +173,9 @@
                 const response = await fetch('/api/nurse/availability', {
                     method: 'POST',
                     headers: {
-                        'Content-Type': 'application/json',
-                        'Authorization': `Bearer ${localStorage.getItem('token')}`
+                        'Content-Type': 'application/json'
                     },
+                    credentials: 'include', // Use session cookies instead of localStorage
                     body: JSON.stringify(availabilityData)
                 });
 
@@ -183,6 +183,9 @@
                     alert('Availability saved successfully!');
                     resetForm();
                     loadAvailabilitySlots();
+                } else if (response.status === 403) {
+                    alert('Session expired. Please login again.');
+                    window.location.href = 'login.html';
                 } else {
                     const error = await response.json();
                     alert('Error saving availability: ' + error.message);
@@ -205,14 +208,16 @@
                 }
 
                 const response = await fetch(url, {
-                    headers: {
-                        'Authorization': `Bearer ${localStorage.getItem('token')}`
-                    }
+                    method: 'GET',
+                    credentials: 'include' // Use session cookies instead of localStorage
                 });
 
                 if (response.ok) {
                     const slots = await response.json();
                     displayAvailabilitySlots(slots);
+                } else if (response.status === 403) {
+                    alert('Session expired. Please login again.');
+                    window.location.href = 'login.html';
                 } else {
                     slotsContainer.innerHTML = '<p>Error loading availability slots</p>';
                 }
@@ -256,9 +261,8 @@
             // Load slot data and populate form for editing
             try {
                 const response = await fetch(`/api/nurse/availability/${id}`, {
-                    headers: {
-                        'Authorization': `Bearer ${localStorage.getItem('token')}`
-                    }
+                    method: 'GET',
+                    credentials: 'include' // Use session cookies instead of localStorage
                 });
 
                 if (response.ok) {
@@ -270,6 +274,9 @@
 
                     // Scroll to form
                     document.getElementById('availabilityForm').scrollIntoView();
+                } else if (response.status === 403) {
+                    alert('Session expired. Please login again.');
+                    window.location.href = 'login.html';
                 }
             } catch (error) {
                 console.error('Error loading slot for edit:', error);
@@ -281,14 +288,15 @@
                 try {
                     const response = await fetch(`/api/nurse/availability/${id}`, {
                         method: 'DELETE',
-                        headers: {
-                            'Authorization': `Bearer ${localStorage.getItem('token')}`
-                        }
+                        credentials: 'include' // Use session cookies instead of localStorage
                     });
 
                     if (response.ok) {
                         alert('Availability slot deleted successfully!');
                         loadAvailabilitySlots();
+                    } else if (response.status === 403) {
+                        alert('Session expired. Please login again.');
+                        window.location.href = 'login.html';
                     } else {
                         alert('Error deleting availability slot');
                     }

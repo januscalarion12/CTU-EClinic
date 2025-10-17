@@ -31,10 +31,18 @@ function isPublicPage() {
     return publicPages.includes(window.location.pathname.split('/').pop());
 }
 
-function logout() {
+async function logout() {
+    try {
+        await fetch(`${API_BASE_URL}/auth/logout`, {
+            method: 'POST',
+            credentials: 'include'
+        });
+    } catch (error) {
+        console.error('Logout error:', error);
+    }
     localStorage.removeItem('token');
     localStorage.removeItem('user');
-    window.location.href = 'index.html';
+    window.location.href = 'login.html';
 }
 
 // Navigation functions

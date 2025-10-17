@@ -3,7 +3,7 @@ const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const router = express.Router();
 const { poolPromise, sql } = require('../db');
-const { sendPasswordResetEmail } = require('../utils/mailer');
+const { sendPasswordResetEmail } = require('../Utils/mailer');
 const { authenticateToken } = require('../middleware/auth');
 
 // Register

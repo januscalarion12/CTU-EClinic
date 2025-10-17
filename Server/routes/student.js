@@ -2,7 +2,7 @@ const express = require('express');
 const router = express.Router();
 const { poolPromise, sql } = require('../db');
 const { authorizeRole } = require('../middleware/auth');
-const { sendAppointmentRequestEmail } = require('../utils/mailer');
+const { sendAppointmentRequestEmail } = require('../Utils/mailer');
 
 // Get student profile
 router.get('/profile', authorizeRole(['student']), async (req, res) => {
@@ -217,8 +217,8 @@ router.post('/bookings', authorizeRole(['student']), async (req, res) => {
                (SELECT COUNT(*) FROM appointments a
                 WHERE a.nurse_id = na.nurse_id
                   AND CAST(a.appointment_date AS DATE) = CAST(@appointment_date AS DATE)
-                  AND DATEPART(hour, a.appointment_date) = DATEPART(hour, @appointment_date)
-                  AND DATEPART(minute, a.appointment_date) = DATEPART(minute, @appointment_date)
+                  AND a.appointment_date >= DATEADD(hour, DATEPART(hour, na.start_time), DATEADD(minute, DATEPART(minute, na.start_time), CAST(CAST(@appointment_date AS DATE) AS DATETIME2)))
+                  AND a.appointment_date < DATEADD(hour, DATEPART(hour, na.end_time), DATEADD(minute, DATEPART(minute, na.end_time), CAST(CAST(@appointment_date AS DATE) AS DATETIME2)))
                   AND a.status IN ('pending', 'confirmed')) as booked_slots
         FROM nurse_availability na
         WHERE na.nurse_id = @nurse_id
@@ -229,12 +229,12 @@ router.post('/bookings', authorizeRole(['student']), async (req, res) => {
       `);
 
     if (availabilityResult.recordset.length === 0) {
-      return res.status(400).json({ message: 'Selected time slot is not available' });
+      return res.status(400).json({ message: 'This time slot is not available. Please select a different time.' });
     }
 
     const availability = availabilityResult.recordset[0];
     if (availability.booked_slots >= availability.max_patients) {
-      return res.status(400).json({ message: 'Selected time slot is fully booked' });
+      return res.status(400).json({ message: 'This time slot is fully booked. Please select a different time.' });
     }
 
     const insertRequest = pool.request();
@@ -268,6 +268,7 @@ router.post('/bookings', authorizeRole(['student']), async (req, res) => {
       const nurseEmailRequest = pool.request();
       const nurseEmailResult = await nurseEmailRequest
         .input('nurse_id', sql.Int, nurseId)
+        .input('student_id', sql.Int, studentId)
         .query(`
           SELECT u.email, n.name as nurse_name, s.name as student_name
           FROM nurses n
@@ -369,17 +370,19 @@ router.get('/availability', authorizeRole(['student']), async (req, res) => {
           na.id,
           na.nurse_id,
           n.name as nurse_name,
-          na.date,
+          na.availability_date,
           na.start_time,
           na.end_time,
-          na.maxPatients,
+          na.max_patients,
           na.is_available,
-          -- Count existing appointments for this nurse on this date
+          -- Count existing appointments for this nurse on this date within the time slot
           (
             SELECT COUNT(*)
             FROM appointments a
             WHERE a.nurse_id = na.nurse_id
-              AND CAST(a.appointment_date AS DATE) = na.date
+              AND CAST(a.appointment_date AS DATE) = na.availability_date
+              AND a.appointment_date >= DATEADD(hour, DATEPART(hour, na.start_time), DATEADD(minute, DATEPART(minute, na.start_time), CAST(na.availability_date AS DATETIME2)))
+              AND a.appointment_date < DATEADD(hour, DATEPART(hour, na.end_time), DATEADD(minute, DATEPART(minute, na.end_time), CAST(na.availability_date AS DATETIME2)))
               AND a.status IN ('pending', 'confirmed')
           ) as booked_slots
         FROM nurse_availability na
@@ -387,7 +390,7 @@ router.get('/availability', authorizeRole(['student']), async (req, res) => {
         INNER JOIN nurse_students ns ON n.id = ns.nurse_id
         WHERE ns.student_id = @student_id
           AND ns.is_active = 1
-          AND na.date = @date
+          AND na.availability_date = @date
           AND na.is_available = 1
         ORDER BY n.name, na.start_time
       `);
