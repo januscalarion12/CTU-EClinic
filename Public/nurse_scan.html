@@ -160,6 +160,7 @@
         </div>
     </main>
 
+    <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.min.js"></script>
     <script src="js/common.js"></script>
     <script>
         // Sidebar toggle functionality
@@ -192,11 +193,16 @@
         // Scanner variables
         let stream = null;
         let scanning = false;
+        let scanInterval = null;
+        let canvas = null;
+        let video = null;
 
         // Initialize scanner
         document.addEventListener('DOMContentLoaded', function() {
             checkCameraSupport();
             loadRecentScans();
+            canvas = document.getElementById('canvas');
+            video = document.getElementById('video');
         });
 
         // Check camera support
@@ -219,7 +225,7 @@
                 };
 
                 stream = await navigator.mediaDevices.getUserMedia(constraints);
-                document.getElementById('video').srcObject = stream;
+                video.srcObject = stream;
                 document.getElementById('scanner').style.display = 'block';
                 document.getElementById('scannerPlaceholder').style.display = 'none';
                 document.getElementById('startScan').style.display = 'inline-block';
@@ -262,8 +268,8 @@
             document.getElementById('stopScan').style.display = 'inline-block';
             document.getElementById('scanner').classList.add('scanning');
 
-            // Start QR code detection (placeholder - would integrate with QR library)
-            simulateScan();
+            // Start QR code detection
+            scanQRCode();
         }
 
         // Stop scanning
@@ -276,6 +282,11 @@
             document.getElementById('startScan').style.display = 'inline-block';
             document.getElementById('stopScan').style.display = 'none';
             document.getElementById('scanner').classList.remove('scanning');
+
+            if (scanInterval) {
+                clearInterval(scanInterval);
+                scanInterval = null;
+            }
         }
 
         // Toggle flashlight
@@ -301,33 +312,82 @@
             }
         });
 
-        // Simulate QR scan (replace with actual QR library)
-        function simulateScan() {
+        // Scan QR code using jsQR
+        function scanQRCode() {
             if (!scanning) return;
 
-            // Simulate successful scan after 3 seconds
-            setTimeout(() => {
-                if (scanning) {
-                    showScanResult();
-                    stopScanning();
+            const canvasContext = canvas.getContext('2d');
+
+            function scanFrame() {
+                if (!scanning || video.readyState !== video.HAVE_ENOUGH_DATA) {
+                    return;
                 }
-            }, 3000);
+
+                canvas.width = video.videoWidth;
+                canvas.height = video.videoHeight;
+                canvasContext.drawImage(video, 0, 0, canvas.width, canvas.height);
+
+                const imageData = canvasContext.getImageData(0, 0, canvas.width, canvas.height);
+                const code = jsQR(imageData.data, imageData.width, imageData.height, {
+                    inversionAttempts: 'dontInvert'
+                });
+
+                if (code) {
+                    // QR code detected
+                    processQRCode(code.data);
+                    stopScanning();
+                    return;
+                }
+
+                // Continue scanning
+                if (scanning) {
+                    requestAnimationFrame(scanFrame);
+                }
+            }
+
+            scanFrame();
+        }
+
+        // Process detected QR code
+        async function processQRCode(qrData) {
+            try {
+                // Send QR data to server for validation and processing
+                const response = await fetch('/api/nurse/scan-appointment-qr', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    credentials: 'include',
+                    body: JSON.stringify({ qrData: qrData })
+                });
+
+                if (response.ok) {
+                    const result = await response.json();
+                    showScanResult(result.appointment);
+                } else {
+                    const error = await response.json();
+                    alert('Scan failed: ' + error.message);
+                }
+            } catch (error) {
+                console.error('Error processing QR code:', error);
+                alert('Error processing QR code');
+            }
         }
 
         // Show scan result
-        function showScanResult() {
+        function showScanResult(appointment) {
             const studentInfo = document.getElementById('studentInfo');
             studentInfo.innerHTML = `
                 <div class="student-avatar">
                     <i class="fas fa-user-circle"></i>
                 </div>
                 <div class="student-details">
-                    <h4>John Doe</h4>
-                    <p class="student-id">Student ID: STU001</p>
-                    <p class="student-program">Computer Science</p>
-                    <p class="student-contact">john.doe@university.edu</p>
+                    <h4>${appointment.studentName}</h4>
+                    <p class="student-id">Student ID: ${appointment.studentId}</p>
+                    <p class="appointment-date">Appointment: ${new Date(appointment.appointmentDate).toLocaleString()}</p>
+                    <p class="appointment-status">Status: <span class="status-${appointment.status}">${appointment.status}</span></p>
                     <div class="student-status">
-                        <span class="status-badge active">Active Student</span>
+                        <span class="status-badge success">Check-in Successful</span>
                     </div>
                 </div>
             `;
@@ -336,7 +396,7 @@
             document.getElementById('scanResult').scrollIntoView({ behavior: 'smooth' });
 
             // Add to recent scans
-            addToRecentScans('John Doe', 'STU001');
+            addToRecentScans(appointment.studentName, appointment.studentId);
         }
 
         // Close scan result
@@ -414,6 +474,9 @@
         window.addEventListener('beforeunload', function() {
             if (stream) {
                 stream.getTracks().forEach(track => track.stop());
+            }
+            if (scanInterval) {
+                clearInterval(scanInterval);
             }
         });
     </script>

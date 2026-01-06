@@ -6,6 +6,7 @@
     <title>Book Appointment - Clinic Management System</title>
     <link rel="stylesheet" href="css/style.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <link href='https://cdn.jsdelivr.net/npm/fullcalendar@6.1.10/index.global.min.css' rel='stylesheet' />
 </head>
 <body>
     <!-- Top Header -->
@@ -68,21 +69,11 @@
             <div class="appointment-form">
                 <form id="appointmentForm">
                     <div class="form-group">
-                        <label for="appointmentDate">Preferred Date</label>
-                        <input type="date" id="appointmentDate" name="appointmentDate" required>
-                        <div id="dateAvailability" class="availability-info"></div>
-                    </div>
-                    <div class="form-group">
-                        <label for="nurseSelect">Select Nurse</label>
-                        <select id="nurseSelect" name="nurseSelect" required>
-                            <option value="">Select Date First</option>
-                        </select>
-                    </div>
-                    <div class="form-group">
-                        <label for="appointmentTime">Available Time Slots</label>
-                        <select id="appointmentTime" name="appointmentTime" required>
-                            <option value="">Select Nurse First</option>
-                        </select>
+                        <label for="calendar">Select Date and Time</label>
+                        <div id='calendar'></div>
+                        <input type="hidden" id="appointmentDate" name="appointmentDate">
+                        <input type="hidden" id="appointmentTime" name="appointmentTime">
+                        <input type="hidden" id="nurseId" name="nurseId">
                     </div>
                     <div class="form-group">
                         <label for="reason">Reason for Visit</label>
@@ -106,6 +97,7 @@
     </footer>
 
     <script src="js/common.js"></script>
+    <script src='https://cdn.jsdelivr.net/npm/fullcalendar@6.1.10/index.global.min.js'></script>
     <script>
         // Sidebar toggle functionality
         document.getElementById('sidebarToggle').addEventListener('click', function() {
@@ -134,173 +126,124 @@
             }
         });
 
-        // Form submission handler
-        document.getElementById('appointmentForm').addEventListener('submit', async function(e) {
-            e.preventDefault();
+        let calendar;
+        let selectedDate = null;
+        let selectedTime = null;
+        let selectedNurseId = null;
 
-            const formData = new FormData(this);
-            const nurseId = formData.get('nurseSelect');
-            const appointmentTime = formData.get('appointmentTime');
+        // Initialize calendar
+        document.addEventListener('DOMContentLoaded', function() {
+            const calendarEl = document.getElementById('calendar');
+            calendar = new FullCalendar.Calendar(calendarEl, {
+                initialView: 'dayGridMonth',
+                selectable: true,
+                dateClick: function(info) {
+                    const dateStr = info.dateStr;
+                    if (window.availableDates && window.availableDates.includes(dateStr)) {
+                        selectedDate = dateStr;
+                        loadAvailableSlots(selectedDate);
+                    } else {
+                        alert('This date is not available for appointments.');
+                    }
+                },
+                events: async function(fetchInfo, successCallback, failureCallback) {
+                    try {
+                        const startStr = fetchInfo.start.toISOString().split('T')[0];
+                        const endStr = fetchInfo.end.toISOString().split('T')[0];
+                        const response = await fetch(`/api/student/available-dates?start=${startStr}&end=${endStr}`, {
+                            method: 'GET',
+                            credentials: 'include'
+                        });
 
-            if (!nurseId || !appointmentTime) {
-                alert('Please select a nurse and time slot');
-                return;
-            }
+                        if (response.ok) {
+                            const availableDates = await response.json();
+                            window.availableDates = availableDates;
 
-            // Check if selected time slot is available
-            const selectedOption = document.querySelector('#appointmentTime option:checked');
-            if (selectedOption && selectedOption.disabled) {
-                alert('This time slot is fully booked. Please select a different time.');
-                return;
-            }
+                            // Create background events for all dates
+                            const events = [];
+                            let current = new Date(fetchInfo.start);
+                            const end = new Date(fetchInfo.end);
 
-            const appointmentData = {
-                nurseId: parseInt(nurseId),
-                appointmentDate: formData.get('appointmentDate') + 'T' + appointmentTime,
-                reason: formData.get('reason')
-            };
+                            while (current < end) {
+                                const dateStr = current.toISOString().split('T')[0];
+                                const isAvailable = availableDates.includes(dateStr);
+                                events.push({
+                                    start: dateStr,
+                                    rendering: 'background',
+                                    backgroundColor: isAvailable ? '#d4edda' : '#f8d7da',
+                                    borderColor: isAvailable ? '#28a745' : '#dc3545'
+                                });
+                                current.setDate(current.getDate() + 1);
+                            }
 
-            try {
-                const response = await fetch('/api/student/bookings', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json'
-                    },
-                    credentials: 'include', // Use session cookies instead of localStorage
-                    body: JSON.stringify(appointmentData)
-                });
-
-                if (response.ok) {
-                    const result = await response.json();
-                    alert('Appointment booked successfully! Your appointment is pending nurse approval.');
-                    this.reset();
-                    resetForm();
-                } else {
-                    const error = await response.json();
-                    alert('Error booking appointment: ' + error.message);
+                            successCallback(events);
+                        } else {
+                            failureCallback('Error loading dates');
+                        }
+                    } catch (error) {
+                        console.error('Error loading available dates:', error);
+                        failureCallback(error);
+                    }
                 }
-            } catch (error) {
-                console.error('Error:', error);
-                alert('Error booking appointment');
-            }
+            });
+            calendar.render();
         });
 
-        // Date change handler
-        document.getElementById('appointmentDate').addEventListener('change', async function() {
-            const selectedDate = this.value;
-            if (selectedDate) {
-                await loadAvailableNurses(selectedDate);
-            } else {
-                resetForm();
-            }
-        });
 
-        // Nurse change handler
-        document.getElementById('nurseSelect').addEventListener('change', async function() {
-            const selectedNurseId = this.value;
-            const selectedDate = document.getElementById('appointmentDate').value;
-            if (selectedNurseId && selectedDate) {
-                await loadAvailableSlots(selectedNurseId, selectedDate);
-            } else {
-                resetTimeSlots();
-            }
-        });
-
-        // Load available nurses for selected date
-        async function loadAvailableNurses(date) {
-            const nurseSelect = document.getElementById('nurseSelect');
-            const availabilityInfo = document.getElementById('dateAvailability');
+        // Load available time slots for selected date
+        async function loadAvailableSlots(date) {
+            const slotsContainer = document.getElementById('slotsContainer');
+            const availableSlots = document.getElementById('availableSlots');
 
             try {
                 const response = await fetch(`/api/student/availability?date=${date}`, {
                     method: 'GET',
-                    credentials: 'include' // Use session cookies instead of localStorage
+                    credentials: 'include'
                 });
 
                 if (response.ok) {
                     const slots = await response.json();
 
                     if (slots.length === 0) {
-                        availabilityInfo.innerHTML = '<span class="no-availability">No nurses available on this date</span>';
-                        nurseSelect.innerHTML = '<option value="">No nurses available</option>';
-                        nurseSelect.disabled = true;
-                        resetTimeSlots();
+                        slotsContainer.innerHTML = '<p>No slots available on this date</p>';
+                        availableSlots.style.display = 'block';
                         return;
                     }
 
-                    // Get unique nurses
-                    const uniqueNurses = [];
-                    const nurseMap = new Map();
+                    // Generate time slots
+                    const timeSlots = generateTimeSlots(slots);
+                    slotsContainer.innerHTML = timeSlots.map(slot => `
+                        <button type="button" class="time-slot ${slot.available ? 'available' : 'booked'}"
+                                data-time="${slot.value}" data-nurse="${slot.nurseId}"
+                                ${!slot.available ? 'disabled' : ''}>
+                            ${slot.label}
+                        </button>
+                    `).join('');
 
-                    slots.forEach(slot => {
-                        if (!nurseMap.has(slot.nurse_id)) {
-                            nurseMap.set(slot.nurse_id, slot.nurse_name);
-                            uniqueNurses.push({
-                                id: slot.nurse_id,
-                                name: slot.nurse_name
-                            });
-                        }
+                    // Add click handlers
+                    document.querySelectorAll('.time-slot.available').forEach(button => {
+                        button.addEventListener('click', function() {
+                            // Remove selected class from others
+                            document.querySelectorAll('.time-slot').forEach(btn => btn.classList.remove('selected'));
+                            this.classList.add('selected');
+                            selectedTime = this.dataset.time;
+                            selectedNurseId = this.dataset.nurse;
+                            document.getElementById('appointmentDate').value = date;
+                            document.getElementById('appointmentTime').value = selectedTime;
+                            document.getElementById('nurseId').value = selectedNurseId;
+                        });
                     });
 
-                    availabilityInfo.innerHTML = `<span class="available-info">${uniqueNurses.length} nurse(s) available</span>`;
-
-                    nurseSelect.innerHTML = '<option value="">Select Nurse</option>' +
-                        uniqueNurses.map(nurse => `<option value="${nurse.id}">${nurse.name}</option>`).join('');
-                    nurseSelect.disabled = false;
-
-                } else if (response.status === 403) {
-                    availabilityInfo.innerHTML = '<span class="error-info">Session expired. Please login again.</span>';
-                    resetForm();
-                    localStorage.removeItem('token');
-                    localStorage.removeItem('user');
-                    setTimeout(() => window.location.href = 'login.html', 2000);
-                } else {
-                    availabilityInfo.innerHTML = '<span class="error-info">Error loading availability</span>';
-                    resetForm();
-                }
-            } catch (error) {
-                console.error('Error loading availability:', error);
-                availabilityInfo.innerHTML = '<span class="error-info">Error loading availability</span>';
-                resetForm();
-            }
-        }
-
-        // Load available time slots for selected nurse and date
-        async function loadAvailableSlots(nurseId, date) {
-            const timeSelect = document.getElementById('appointmentTime');
-
-            try {
-                const response = await fetch(`/api/student/availability?date=${date}`, {
-                    method: 'GET',
-                    credentials: 'include' // Use session cookies instead of localStorage
-                });
-
-                if (response.ok) {
-                    const slots = await response.json();
-
-                    // Filter slots for the selected nurse
-                    const nurseSlots = slots.filter(slot => slot.nurse_id == nurseId);
-
-                    if (nurseSlots.length === 0) {
-                        timeSelect.innerHTML = '<option value="">No slots available</option>';
-                        timeSelect.disabled = true;
-                        return;
-                    }
-
-                    // Generate time slots from nurse availability
-                    const timeSlots = generateTimeSlots(nurseSlots);
-                    timeSelect.innerHTML = '<option value="">Select Time</option>' +
-                        timeSlots.map(slot => `<option value="${slot.value}" ${!slot.available ? 'disabled style="color: #999;"' : ''}>${slot.label}${!slot.available ? ' (FULLY BOOKED)' : ''}</option>`).join('');
-                    timeSelect.disabled = false;
+                    availableSlots.style.display = 'block';
 
                 } else {
-                    timeSelect.innerHTML = '<option value="">Error loading slots</option>';
-                    timeSelect.disabled = true;
+                    slotsContainer.innerHTML = '<p>Error loading slots</p>';
+                    availableSlots.style.display = 'block';
                 }
             } catch (error) {
                 console.error('Error loading slots:', error);
-                timeSelect.innerHTML = '<option value="">Error loading slots</option>';
-                timeSelect.disabled = true;
+                slotsContainer.innerHTML = '<p>Error loading slots</p>';
+                availableSlots.style.display = 'block';
             }
         }
 
@@ -330,7 +273,6 @@
                             hour12: true
                         })} (${availableSlots} slots available)`;
 
-                        // Add all slots but mark unavailable ones
                         slots.push({
                             value: timeValue,
                             label: timeLabel,
@@ -346,26 +288,48 @@
             return slots;
         }
 
-        function resetTimeSlots() {
-            const timeSelect = document.getElementById('appointmentTime');
-            timeSelect.innerHTML = '<option value="">Select Nurse First</option>';
-            timeSelect.disabled = true;
-        }
+        // Form submission handler
+        document.getElementById('appointmentForm').addEventListener('submit', async function(e) {
+            e.preventDefault();
 
-        function resetForm() {
-            const nurseSelect = document.getElementById('nurseSelect');
-            nurseSelect.innerHTML = '<option value="">Select Date First</option>';
-            nurseSelect.disabled = true;
-            resetTimeSlots();
-        }
+            if (!selectedDate || !selectedTime || !selectedNurseId) {
+                alert('Please select a date and time slot');
+                return;
+            }
 
-        // Initialize on page load
-        document.addEventListener('DOMContentLoaded', function() {
-            // Set minimum date to today
-            const today = new Date().toISOString().split('T')[0];
-            document.getElementById('appointmentDate').setAttribute('min', today);
+            const appointmentData = {
+                nurseId: parseInt(selectedNurseId),
+                appointmentDate: selectedDate + 'T' + selectedTime,
+                reason: document.getElementById('reason').value
+            };
 
-            resetForm();
+            try {
+                const response = await fetch('/api/student/bookings', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    credentials: 'include',
+                    body: JSON.stringify(appointmentData)
+                });
+
+                if (response.ok) {
+                    const result = await response.json();
+                    alert('Appointment booked successfully! Your appointment is pending nurse approval.');
+                    this.reset();
+                    selectedDate = null;
+                    selectedTime = null;
+                    selectedNurseId = null;
+                    document.getElementById('availableSlots').style.display = 'none';
+                    calendar.refetchEvents();
+                } else {
+                    const error = await response.json();
+                    alert('Error booking appointment: ' + error.message);
+                }
+            } catch (error) {
+                console.error('Error:', error);
+                alert('Error booking appointment');
+            }
         });
     </script>
 </body>

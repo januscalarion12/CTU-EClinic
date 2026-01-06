@@ -151,6 +151,11 @@
                             <!-- Students will be loaded here -->
                         </tbody>
                     </table>
+                    <div id="studentsPagination" class="pagination-container" style="display: none;">
+                        <button id="studentsPrevPage" class="btn-secondary">Previous</button>
+                        <span id="studentsPageInfo">Page 1 of 1</span>
+                        <button id="studentsNextPage" class="btn-secondary">Next</button>
+                    </div>
                 </div>
 
                 <!-- Nurses Tab -->
@@ -183,6 +188,11 @@
                             <!-- Nurses will be loaded here -->
                         </tbody>
                     </table>
+                    <div id="nursesPagination" class="pagination-container" style="display: none;">
+                        <button id="nursesPrevPage" class="btn-secondary">Previous</button>
+                        <span id="nursesPageInfo">Page 1 of 1</span>
+                        <button id="nursesNextPage" class="btn-secondary">Next</button>
+                    </div>
                 </div>
 
                 <!-- Admins Tab -->
@@ -214,6 +224,11 @@
                             <!-- Admins will be loaded here -->
                         </tbody>
                     </table>
+                    <div id="adminsPagination" class="pagination-container" style="display: none;">
+                        <button id="adminsPrevPage" class="btn-secondary">Previous</button>
+                        <span id="adminsPageInfo">Page 1 of 1</span>
+                        <button id="adminsNextPage" class="btn-secondary">Next</button>
+                    </div>
                 </div>
 
                 <!-- Pending Tab -->
@@ -307,145 +322,435 @@
 
         // Load data for specific tabs
         function loadTabData(tabName) {
+            const page = currentPages[tabName] || 1;
             switch(tabName) {
                 case 'students':
-                    loadStudents();
+                    loadStudents('', page);
                     break;
                 case 'nurses':
-                    loadNurses();
+                    loadNurses('', page);
                     break;
                 case 'admins':
-                    loadAdmins();
+                    loadAdmins('', page);
                     break;
                 case 'pending':
-                    loadPendingUsers();
+                    loadPendingUsers(page);
                     break;
             }
         }
 
         // Load students data
-        function loadStudents() {
+        async function loadStudents(search = '', page = 1) {
             const tbody = document.querySelector('#studentsTable tbody');
-            // This would typically fetch data from your backend
-            tbody.innerHTML = `
-                <tr>
-                    <td>John Doe</td>
-                    <td>STU001</td>
-                    <td>john.doe@university.edu</td>
-                    <td>Computer Science</td>
-                    <td><span class="status-badge active">Active</span></td>
-                    <td>2024-01-15</td>
+            tbody.innerHTML = '<tr><td colspan="7" style="text-align: center;">Loading...</td></tr>';
+
+            try {
+                const params = new URLSearchParams({
+                    role: 'student',
+                    page: page,
+                    limit: 20
+                });
+
+                if (search) {
+                    params.append('search', search);
+                }
+
+                const response = await fetch(`${API_BASE_URL}/admin/users?${params}`, {
+                    credentials: 'include'
+                });
+
+                const result = await response.json();
+
+                if (response.ok) {
+                    displayStudents(result.users);
+                    updatePagination(result.pagination, 'students');
+                } else {
+                    showError(result.message || 'Failed to load students');
+                    tbody.innerHTML = '<tr><td colspan="7" style="text-align: center;">Error loading students</td></tr>';
+                }
+            } catch (error) {
+                console.error('Error loading students:', error);
+                showError('Network error. Please try again.');
+                tbody.innerHTML = '<tr><td colspan="7" style="text-align: center;">Error loading students</td></tr>';
+            }
+        }
+
+        function displayStudents(students) {
+            const tbody = document.querySelector('#studentsTable tbody');
+            tbody.innerHTML = '';
+
+            if (students.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="7" style="text-align: center;">No students found</td></tr>';
+                return;
+            }
+
+            students.forEach(student => {
+                const fullName = `${student.first_name} ${student.middle_name || ''} ${student.last_name} ${student.extension_name || ''}`.trim();
+                const statusBadge = student.is_email_confirmed ?
+                    '<span class="status-badge active">Active</span>' :
+                    '<span class="status-badge inactive">Inactive</span>';
+
+                const row = document.createElement('tr');
+                row.innerHTML = `
+                    <td>${fullName}</td>
+                    <td>${student.role_specific_id || student.ctu_id || 'N/A'}</td>
+                    <td>${student.email}</td>
+                    <td>${student.department || 'N/A'}</td>
+                    <td>${statusBadge}</td>
+                    <td>${new Date(student.created_at).toLocaleDateString()}</td>
                     <td>
-                        <button class="btn-small" onclick="viewUser('STU001')">View</button>
-                        <button class="btn-small" onclick="editUser('STU001')">Edit</button>
-                        <button class="btn-small btn-danger" onclick="suspendUser('STU001')">Suspend</button>
+                        <button class="btn-small" onclick="viewUser(${student.id})">View</button>
+                        <button class="btn-small" onclick="editUser(${student.id})">Edit</button>
+                        <button class="btn-small btn-danger" onclick="deleteUser(${student.id})">Delete</button>
                     </td>
-                </tr>
-                <tr>
-                    <td>Jane Smith</td>
-                    <td>STU002</td>
-                    <td>jane.smith@university.edu</td>
-                    <td>Engineering</td>
-                    <td><span class="status-badge active">Active</span></td>
-                    <td>2024-01-14</td>
-                    <td>
-                        <button class="btn-small" onclick="viewUser('STU002')">View</button>
-                        <button class="btn-small" onclick="editUser('STU002')">Edit</button>
-                        <button class="btn-small btn-danger" onclick="suspendUser('STU002')">Suspend</button>
-                    </td>
-                </tr>
-            `;
+                `;
+                tbody.appendChild(row);
+            });
         }
 
         // Load nurses data
-        function loadNurses() {
+        async function loadNurses(search = '', page = 1) {
             const tbody = document.querySelector('#nursesTable tbody');
-            tbody.innerHTML = `
-                <tr>
-                    <td>Sarah Johnson</td>
-                    <td>NUR001</td>
-                    <td>sarah.johnson@clinic.edu</td>
-                    <td>General Practice</td>
-                    <td><span class="status-badge active">Active</span></td>
-                    <td>2024-01-15</td>
+            tbody.innerHTML = '<tr><td colspan="7" style="text-align: center;">Loading...</td></tr>';
+
+            try {
+                const params = new URLSearchParams({
+                    role: 'nurse',
+                    page: page,
+                    limit: 20
+                });
+
+                if (search) {
+                    params.append('search', search);
+                }
+
+                const response = await fetch(`${API_BASE_URL}/admin/users?${params}`, {
+                    credentials: 'include'
+                });
+
+                const result = await response.json();
+
+                if (response.ok) {
+                    displayNurses(result.users);
+                    updatePagination(result.pagination, 'nurses');
+                } else {
+                    showError(result.message || 'Failed to load nurses');
+                    tbody.innerHTML = '<tr><td colspan="7" style="text-align: center;">Error loading nurses</td></tr>';
+                }
+            } catch (error) {
+                console.error('Error loading nurses:', error);
+                showError('Network error. Please try again.');
+                tbody.innerHTML = '<tr><td colspan="7" style="text-align: center;">Error loading nurses</td></tr>';
+            }
+        }
+
+        function displayNurses(nurses) {
+            const tbody = document.querySelector('#nursesTable tbody');
+            tbody.innerHTML = '';
+
+            if (nurses.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="7" style="text-align: center;">No nurses found</td></tr>';
+                return;
+            }
+
+            nurses.forEach(nurse => {
+                const fullName = `${nurse.first_name} ${nurse.middle_name || ''} ${nurse.last_name} ${nurse.extension_name || ''}`.trim();
+                const statusBadge = nurse.is_email_confirmed ?
+                    '<span class="status-badge active">Active</span>' :
+                    '<span class="status-badge inactive">Inactive</span>';
+
+                const row = document.createElement('tr');
+                row.innerHTML = `
+                    <td>${fullName}</td>
+                    <td>${nurse.role_specific_id || nurse.ctu_id || 'N/A'}</td>
+                    <td>${nurse.email}</td>
+                    <td>${nurse.specialization || 'N/A'}</td>
+                    <td>${statusBadge}</td>
+                    <td>${new Date(nurse.created_at).toLocaleDateString()}</td>
                     <td>
-                        <button class="btn-small" onclick="viewUser('NUR001')">View</button>
-                        <button class="btn-small" onclick="editUser('NUR001')">Edit</button>
-                        <button class="btn-small btn-warning" onclick="deactivateUser('NUR001')">Deactivate</button>
+                        <button class="btn-small" onclick="viewUser(${nurse.id})">View</button>
+                        <button class="btn-small" onclick="editUser(${nurse.id})">Edit</button>
+                        <button class="btn-small btn-danger" onclick="deleteUser(${nurse.id})">Delete</button>
                     </td>
-                </tr>
-            `;
+                `;
+                tbody.appendChild(row);
+            });
         }
 
         // Load admins data
-        function loadAdmins() {
+        async function loadAdmins(search = '', page = 1) {
             const tbody = document.querySelector('#adminsTable tbody');
-            tbody.innerHTML = `
-                <tr>
-                    <td>Admin User</td>
-                    <td>ADM001</td>
-                    <td>admin@clinic.edu</td>
-                    <td>System Administrator</td>
-                    <td><span class="status-badge active">Active</span></td>
-                    <td>2024-01-15</td>
-                    <td>
-                        <button class="btn-small" onclick="viewUser('ADM001')">View</button>
-                        <button class="btn-small" onclick="editUser('ADM001')">Edit</button>
-                    </td>
-                </tr>
-            `;
+            tbody.innerHTML = '<tr><td colspan="7" style="text-align: center;">Loading...</td></tr>';
+
+            try {
+                const params = new URLSearchParams({
+                    role: 'admin',
+                    page: page,
+                    limit: 20
+                });
+
+                if (search) {
+                    params.append('search', search);
+                }
+
+                const response = await fetch(`${API_BASE_URL}/admin/users?${params}`, {
+                    credentials: 'include'
+                });
+
+                const result = await response.json();
+
+                if (response.ok) {
+                    displayAdmins(result.users);
+                    updatePagination(result.pagination, 'admins');
+                } else {
+                    showError(result.message || 'Failed to load admins');
+                    tbody.innerHTML = '<tr><td colspan="7" style="text-align: center;">Error loading admins</td></tr>';
+                }
+            } catch (error) {
+                console.error('Error loading admins:', error);
+                showError('Network error. Please try again.');
+                tbody.innerHTML = '<tr><td colspan="7" style="text-align: center;">Error loading admins</td></tr>';
+            }
         }
 
-        // Load pending users
-        function loadPendingUsers() {
-            const tbody = document.querySelector('#pendingTable tbody');
-            tbody.innerHTML = `
-                <tr>
-                    <td>Mike Wilson</td>
-                    <td>mike.wilson@university.edu</td>
-                    <td>Student</td>
-                    <td>2024-01-10</td>
+        function displayAdmins(admins) {
+            const tbody = document.querySelector('#adminsTable tbody');
+            tbody.innerHTML = '';
+
+            if (admins.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="7" style="text-align: center;">No admins found</td></tr>';
+                return;
+            }
+
+            admins.forEach(admin => {
+                const fullName = `${admin.first_name} ${admin.middle_name || ''} ${admin.last_name} ${admin.extension_name || ''}`.trim();
+                const statusBadge = admin.is_email_confirmed ?
+                    '<span class="status-badge active">Active</span>' :
+                    '<span class="status-badge inactive">Inactive</span>';
+
+                const row = document.createElement('tr');
+                row.innerHTML = `
+                    <td>${fullName}</td>
+                    <td>${admin.ctu_id || 'N/A'}</td>
+                    <td>${admin.email}</td>
+                    <td>Administrator</td>
+                    <td>${statusBadge}</td>
+                    <td>${new Date(admin.created_at).toLocaleDateString()}</td>
                     <td>
-                        <button class="btn-small btn-success" onclick="approveUser('PEN001')">Approve</button>
-                        <button class="btn-small btn-danger" onclick="rejectUser('PEN001')">Reject</button>
+                        <button class="btn-small" onclick="viewUser(${admin.id})">View</button>
+                        <button class="btn-small" onclick="editUser(${admin.id})">Edit</button>
+                        <button class="btn-small btn-danger" onclick="deleteUser(${admin.id})">Delete</button>
                     </td>
-                </tr>
-            `;
+                `;
+                tbody.appendChild(row);
+            });
+        }
+
+        // Load pending users (users who haven't confirmed email)
+        async function loadPendingUsers(page = 1) {
+            const tbody = document.querySelector('#pendingTable tbody');
+            tbody.innerHTML = '<tr><td colspan="5" style="text-align: center;">Loading...</td></tr>';
+
+            try {
+                // For pending users, we might need a different endpoint or filter
+                // For now, we'll load all users and filter client-side, or modify backend
+                const response = await fetch(`${API_BASE_URL}/admin/users?page=${page}&limit=50`, {
+                    credentials: 'include'
+                });
+
+                const result = await response.json();
+
+                if (response.ok) {
+                    // Filter users who haven't confirmed email
+                    const pendingUsers = result.users.filter(user => !user.is_email_confirmed);
+                    displayPendingUsers(pendingUsers);
+
+                    // Update pending count
+                    document.getElementById('pendingCount').textContent = pendingUsers.length;
+                } else {
+                    showError(result.message || 'Failed to load pending users');
+                    tbody.innerHTML = '<tr><td colspan="5" style="text-align: center;">Error loading pending users</td></tr>';
+                }
+            } catch (error) {
+                console.error('Error loading pending users:', error);
+                showError('Network error. Please try again.');
+                tbody.innerHTML = '<tr><td colspan="5" style="text-align: center;">Error loading pending users</td></tr>';
+            }
+        }
+
+        function displayPendingUsers(users) {
+            const tbody = document.querySelector('#pendingTable tbody');
+            tbody.innerHTML = '';
+
+            if (users.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="5" style="text-align: center;">No pending users</td></tr>';
+                return;
+            }
+
+            users.forEach(user => {
+                const fullName = `${user.first_name} ${user.middle_name || ''} ${user.last_name} ${user.extension_name || ''}`.trim();
+                const roleDisplay = user.role.charAt(0).toUpperCase() + user.role.slice(1);
+
+                const row = document.createElement('tr');
+                row.innerHTML = `
+                    <td>${fullName}</td>
+                    <td>${user.email}</td>
+                    <td>${roleDisplay}</td>
+                    <td>${new Date(user.created_at).toLocaleDateString()}</td>
+                    <td>
+                        <button class="btn-small btn-success" onclick="approveUser(${user.id})">Approve</button>
+                        <button class="btn-small btn-danger" onclick="rejectUser(${user.id})">Reject</button>
+                    </td>
+                `;
+                tbody.appendChild(row);
+            });
         }
 
         // User action functions
-        function viewUser(userId) {
-            // Implement view user details
-            alert(`Viewing details for user ${userId}`);
-        }
+        async function viewUser(userId) {
+            try {
+                const response = await fetch(`${API_BASE_URL}/admin/users/${userId}`, {
+                    credentials: 'include'
+                });
 
-        function editUser(userId) {
-            // Implement edit user
-            alert(`Editing user ${userId}`);
-        }
+                const result = await response.json();
 
-        function suspendUser(userId) {
-            if (confirm('Suspend this user?')) {
-                alert(`User ${userId} suspended`);
+                if (response.ok) {
+                    // Show user details in modal
+                    displayUserDetails(result);
+                    document.getElementById('userModal').style.display = 'block';
+                } else {
+                    showError(result.message || 'Failed to load user details');
+                }
+            } catch (error) {
+                console.error('Error viewing user:', error);
+                showError('Network error. Please try again.');
             }
         }
 
-        function deactivateUser(userId) {
-            if (confirm('Deactivate this user?')) {
-                alert(`User ${userId} deactivated`);
+        async function editUser(userId) {
+            // For now, redirect to a user edit page or show edit modal
+            // This would need additional implementation
+            alert(`Edit functionality for user ${userId} - needs implementation`);
+        }
+
+        async function deleteUser(userId) {
+            if (!confirm('Are you sure you want to delete this user? This action cannot be undone.')) {
+                return;
+            }
+
+            try {
+                const response = await fetch(`${API_BASE_URL}/admin/users/${userId}`, {
+                    method: 'DELETE',
+                    credentials: 'include'
+                });
+
+                const result = await response.json();
+
+                if (response.ok) {
+                    showSuccess('User deleted successfully');
+                    // Reload current tab data
+                    const activeTab = document.querySelector('.tab-btn.active');
+                    if (activeTab) {
+                        const tabName = activeTab.textContent.toLowerCase().replace(' ', '');
+                        loadTabData(tabName + 's'); // students, nurses, admins
+                    }
+                    loadStatistics(); // Update stats
+                } else {
+                    showError(result.message || 'Failed to delete user');
+                }
+            } catch (error) {
+                console.error('Error deleting user:', error);
+                showError('Network error. Please try again.');
             }
         }
 
-        function approveUser(userId) {
-            if (confirm('Approve this user registration?')) {
-                alert(`User ${userId} approved`);
+        async function approveUser(userId) {
+            if (!confirm('Approve this user registration?')) {
+                return;
+            }
+
+            try {
+                // Approve by setting is_email_confirmed to true
+                const response = await fetch(`${API_BASE_URL}/admin/users/${userId}`, {
+                    method: 'PUT',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    credentials: 'include',
+                    body: JSON.stringify({ isEmailConfirmed: true })
+                });
+
+                const result = await response.json();
+
+                if (response.ok) {
+                    showSuccess('User approved successfully');
+                    loadPendingUsers(); // Reload pending users
+                    loadStatistics(); // Update stats
+                } else {
+                    showError(result.message || 'Failed to approve user');
+                }
+            } catch (error) {
+                console.error('Error approving user:', error);
+                showError('Network error. Please try again.');
             }
         }
 
-        function rejectUser(userId) {
-            if (confirm('Reject this user registration?')) {
-                alert(`User ${userId} rejected`);
+        async function rejectUser(userId) {
+            if (!confirm('Reject this user registration? The user account will be deleted.')) {
+                return;
             }
+
+            // Reject by deleting the user
+            await deleteUser(userId);
+        }
+
+        function displayUserDetails(user) {
+            const fullName = `${user.first_name} ${user.middle_name || ''} ${user.last_name} ${user.extension_name || ''}`.trim();
+
+            const detailsHtml = `
+                <div class="user-details">
+                    <div class="detail-row">
+                        <strong>Name:</strong> ${fullName}
+                    </div>
+                    <div class="detail-row">
+                        <strong>Email:</strong> ${user.email}
+                    </div>
+                    <div class="detail-row">
+                        <strong>Role:</strong> ${user.role.charAt(0).toUpperCase() + user.role.slice(1)}
+                    </div>
+                    <div class="detail-row">
+                        <strong>ID:</strong> ${user.ctu_id || 'N/A'}
+                    </div>
+                    <div class="detail-row">
+                        <strong>Phone:</strong> ${user.contact_number || 'N/A'}
+                    </div>
+                    <div class="detail-row">
+                        <strong>Email Confirmed:</strong> ${user.is_email_confirmed ? 'Yes' : 'No'}
+                    </div>
+                    <div class="detail-row">
+                        <strong>Created:</strong> ${new Date(user.created_at).toLocaleDateString()}
+                    </div>
+                    ${user.role === 'student' ? `
+                        <div class="detail-row">
+                            <strong>School Year:</strong> ${user.school_year || 'N/A'}
+                        </div>
+                        <div class="detail-row">
+                            <strong>School Level:</strong> ${user.school_level || 'N/A'}
+                        </div>
+                        <div class="detail-row">
+                            <strong>Department:</strong> ${user.department || 'N/A'}
+                        </div>
+                    ` : ''}
+                    ${user.role === 'nurse' ? `
+                        <div class="detail-row">
+                            <strong>License Number:</strong> ${user.role_specific_id || 'N/A'}
+                        </div>
+                    ` : ''}
+                </div>
+            `;
+
+            document.getElementById('userDetailContent').innerHTML = detailsHtml;
         }
 
         function showAddUserModal() {
@@ -468,7 +773,138 @@
             document.getElementById('userModal').style.display = 'none';
         }
 
+        // Load statistics
+        async function loadStatistics() {
+            try {
+                const response = await fetch(`${API_BASE_URL}/admin/statistics`, {
+                    credentials: 'include'
+                });
+
+                const result = await response.json();
+
+                if (response.ok) {
+                    // Update statistics cards
+                    const userStats = result.userStats || [];
+                    const studentStat = userStats.find(stat => stat.role === 'student') || { count: 0 };
+                    const nurseStat = userStats.find(stat => stat.role === 'nurse') || { count: 0 };
+                    const adminStat = userStats.find(stat => stat.role === 'admin') || { count: 0 };
+
+                    document.getElementById('totalStudents').textContent = studentStat.count;
+                    document.getElementById('activeNurses').textContent = nurseStat.count;
+                    document.getElementById('totalAdmins').textContent = adminStat.count;
+
+                    // For pending users, count users with unconfirmed emails
+                    // This could be improved by adding a specific endpoint
+                    document.getElementById('pendingUsers').textContent = '0'; // Placeholder
+                } else {
+                    console.error('Failed to load statistics:', result.message);
+                }
+            } catch (error) {
+                console.error('Error loading statistics:', error);
+            }
+        }
+
+        // Search and filter functionality
+        function initializeSearchAndFilters() {
+            // Student search
+            const studentSearch = document.getElementById('studentSearch');
+            if (studentSearch) {
+                let studentSearchTimeout;
+                studentSearch.addEventListener('input', function() {
+                    clearTimeout(studentSearchTimeout);
+                    studentSearchTimeout = setTimeout(() => {
+                        currentPages.students = 1; // Reset to page 1 on search
+                        loadStudents(this.value, 1);
+                    }, 500);
+                });
+            }
+
+            // Nurse search
+            const nurseSearch = document.getElementById('nurseSearch');
+            if (nurseSearch) {
+                let nurseSearchTimeout;
+                nurseSearch.addEventListener('input', function() {
+                    clearTimeout(nurseSearchTimeout);
+                    nurseSearchTimeout = setTimeout(() => {
+                        currentPages.nurses = 1; // Reset to page 1 on search
+                        loadNurses(this.value, 1);
+                    }, 500);
+                });
+            }
+
+            // Admin search
+            const adminSearch = document.getElementById('adminSearch');
+            if (adminSearch) {
+                let adminSearchTimeout;
+                adminSearch.addEventListener('input', function() {
+                    clearTimeout(adminSearchTimeout);
+                    adminSearchTimeout = setTimeout(() => {
+                        currentPages.admins = 1; // Reset to page 1 on search
+                        loadAdmins(this.value, 1);
+                    }, 500);
+                });
+            }
+        }
+
+        // Pagination state
+        let currentPages = {
+            students: 1,
+            nurses: 1,
+            admins: 1,
+            pending: 1
+        };
+
+        // Pagination function
+        function updatePagination(pagination, type) {
+            const paginationContainer = document.getElementById(`${type}Pagination`);
+            const pageInfo = document.getElementById(`${type}PageInfo`);
+            const prevBtn = document.getElementById(`${type}PrevPage`);
+            const nextBtn = document.getElementById(`${type}NextPage`);
+
+            if (pagination.pages > 1) {
+                paginationContainer.style.display = 'flex';
+                pageInfo.textContent = `Page ${pagination.page} of ${pagination.pages}`;
+
+                // Update button states
+                prevBtn.disabled = pagination.page <= 1;
+                nextBtn.disabled = pagination.page >= pagination.pages;
+
+                // Add event listeners if not already added
+                if (!prevBtn.hasEventListener) {
+                    prevBtn.addEventListener('click', () => changePage(type, pagination.page - 1));
+                    nextBtn.addEventListener('click', () => changePage(type, pagination.page + 1));
+                    prevBtn.hasEventListener = true;
+                    nextBtn.hasEventListener = true;
+                }
+            } else {
+                paginationContainer.style.display = 'none';
+            }
+        }
+
+        function changePage(type, page) {
+            currentPages[type] = page;
+            const searchInput = document.getElementById(`${type.slice(0, -1)}Search`); // Remove 's' from end
+            const searchValue = searchInput ? searchInput.value : '';
+
+            switch(type) {
+                case 'students':
+                    loadStudents(searchValue, page);
+                    break;
+                case 'nurses':
+                    loadNurses(searchValue, page);
+                    break;
+                case 'admins':
+                    loadAdmins(searchValue, page);
+                    break;
+                case 'pending':
+                    loadPendingUsers(page);
+                    break;
+            }
+        }
+
         // Load initial data
+        loadStatistics();
+        initializeSearchAndFilters();
         loadStudents();
     </script>
 </body>

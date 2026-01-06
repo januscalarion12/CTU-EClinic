@@ -3,7 +3,7 @@ const router = express.Router();
 const { poolPromise, sql } = require('../db');
 const { authorizeRole } = require('../middleware/auth');
 const { generateQRCode, validateQRCode, extractAppointmentIdFromQR } = require('../utils/qr');
-const { sendAppointmentStatusEmail } = require('../Utils/mailer');
+const { sendAppointmentStatusEmail } = require('../utils/mailer');
 
 // Helper function to get nurse ID from user ID
 async function getNurseId(userId) {
@@ -20,17 +20,52 @@ async function getNurseId(userId) {
   return nurseResult.recordset[0].id;
 }
 
-// Get nurse's students
+// Get nurse's students with pagination and filters
 router.get('/students', authorizeRole(['nurse']), async (req, res) => {
   try {
     const nurseId = req.user.id;
-    const [rows] = await db.execute(`
-      SELECT s.id, s.name, s.email, s.student_id, s.qr_code
+    const { limit = 20, offset = 0, search, department, schoolYear, schoolLevel } = req.query;
+
+    const pool = await poolPromise;
+
+    let query = `
+      SELECT s.id, s.student_id, s.name, s.email, s.phone, s.department, s.school_year, s.school_level,
+             s.date_of_birth, s.gender, s.blood_type, s.allergies, s.medical_conditions
       FROM students s
-      JOIN nurse_students ns ON s.id = ns.student_id
-      WHERE ns.nurse_id = ?
-    `, [nurseId]);
-    res.json(rows);
+      INNER JOIN nurse_students ns ON s.id = ns.student_id
+      WHERE ns.nurse_id = @nurse_id AND ns.is_active = 1
+    `;
+
+    const request = pool.request().input('nurse_id', sql.Int, nurseId);
+
+    if (search) {
+      query += ' AND (s.name LIKE @search OR s.student_id LIKE @search OR s.email LIKE @search)';
+      request.input('search', sql.VarChar, `%${search}%`);
+    }
+
+    if (department) {
+      query += ' AND s.department = @department';
+      request.input('department', sql.VarChar, department);
+    }
+
+    if (schoolYear) {
+      query += ' AND s.school_year = @school_year';
+      request.input('school_year', sql.VarChar, schoolYear);
+    }
+
+    if (schoolLevel) {
+      query += ' AND s.school_level = @school_level';
+      request.input('school_level', sql.VarChar, schoolLevel);
+    }
+
+    query += ' ORDER BY s.name';
+    query += ' OFFSET @offset ROWS FETCH NEXT @limit ROWS ONLY';
+
+    request.input('offset', sql.Int, parseInt(offset));
+    request.input('limit', sql.Int, parseInt(limit));
+
+    const result = await request.query(query);
+    res.json(result.recordset);
   } catch (error) {
     console.error('Error fetching students:', error);
     res.status(500).json({ message: 'Error fetching students' });
@@ -43,30 +78,143 @@ router.post('/students', authorizeRole(['nurse']), async (req, res) => {
     const { studentId } = req.body;
     const nurseId = req.user.id;
 
+    const pool = await poolPromise;
+
     // Check if student exists
-    const [students] = await db.execute('SELECT id FROM students WHERE id = ?', [studentId]);
-    if (students.length === 0) {
+    const studentCheck = pool.request();
+    const studentResult = await studentCheck
+      .input('student_id', sql.Int, studentId)
+      .query('SELECT id FROM students WHERE id = @student_id');
+
+    if (studentResult.recordset.length === 0) {
       return res.status(404).json({ message: 'Student not found' });
     }
 
     // Check if already assigned
-    const [existing] = await db.execute(
-      'SELECT id FROM nurse_students WHERE nurse_id = ? AND student_id = ?',
-      [nurseId, studentId]
-    );
-    if (existing.length > 0) {
+    const existingCheck = pool.request();
+    const existingResult = await existingCheck
+      .input('nurse_id', sql.Int, nurseId)
+      .input('student_id', sql.Int, studentId)
+      .query('SELECT id FROM nurse_students WHERE nurse_id = @nurse_id AND student_id = @student_id');
+
+    if (existingResult.recordset.length > 0) {
       return res.status(400).json({ message: 'Student already assigned to this nurse' });
     }
 
-    await db.execute(
-      'INSERT INTO nurse_students (nurse_id, student_id) VALUES (?, ?)',
-      [nurseId, studentId]
-    );
+    const insertRequest = pool.request();
+    await insertRequest
+      .input('nurse_id', sql.Int, nurseId)
+      .input('student_id', sql.Int, studentId)
+      .query('INSERT INTO nurse_students (nurse_id, student_id) VALUES (@nurse_id, @student_id)');
 
     res.status(201).json({ message: 'Student assigned successfully' });
   } catch (error) {
     console.error('Error assigning student:', error);
     res.status(500).json({ message: 'Error assigning student' });
+  }
+});
+
+// Update student information
+router.put('/students/:studentId', authorizeRole(['nurse']), async (req, res) => {
+  try {
+    const { studentId } = req.params;
+    const nurseId = req.user.id;
+    const {
+      phone,
+      address,
+      emergency_contact,
+      date_of_birth,
+      gender,
+      blood_type,
+      allergies,
+      medical_conditions,
+      school_year,
+      school_level,
+      department
+    } = req.body;
+
+    const pool = await poolPromise;
+
+    // Verify nurse has access to this student
+    const accessCheck = pool.request();
+    const accessResult = await accessCheck
+      .input('nurse_id', sql.Int, nurseId)
+      .input('student_id', sql.Int, studentId)
+      .query('SELECT id FROM nurse_students WHERE nurse_id = @nurse_id AND student_id = @student_id AND is_active = 1');
+
+    if (accessResult.recordset.length === 0) {
+      return res.status(403).json({ message: 'Access denied to this student' });
+    }
+
+    // Update student information
+    const updateRequest = pool.request();
+    await updateRequest
+      .input('student_id', sql.Int, studentId)
+      .input('phone', sql.VarChar, phone || null)
+      .input('address', sql.NVarChar, address || null)
+      .input('emergency_contact', sql.VarChar, emergency_contact || null)
+      .input('date_of_birth', sql.Date, date_of_birth || null)
+      .input('gender', sql.VarChar, gender || null)
+      .input('blood_type', sql.VarChar, blood_type || null)
+      .input('allergies', sql.NVarChar, allergies || null)
+      .input('medical_conditions', sql.NVarChar, medical_conditions || null)
+      .input('school_year', sql.VarChar, school_year || null)
+      .input('school_level', sql.VarChar, school_level || null)
+      .input('department', sql.VarChar, department || null)
+      .query(`
+        UPDATE students
+        SET phone = @phone,
+            address = @address,
+            emergency_contact = @emergency_contact,
+            date_of_birth = @date_of_birth,
+            gender = @gender,
+            blood_type = @blood_type,
+            allergies = @allergies,
+            medical_conditions = @medical_conditions,
+            school_year = @school_year,
+            school_level = @school_level,
+            department = @department,
+            updated_at = GETDATE()
+        WHERE id = @student_id
+      `);
+
+    res.json({ message: 'Student information updated successfully' });
+  } catch (error) {
+    console.error('Error updating student:', error);
+    res.status(500).json({ message: 'Error updating student information' });
+  }
+});
+
+// Archive/unarchive student assignment
+router.put('/students/:studentId/archive', authorizeRole(['nurse']), async (req, res) => {
+  try {
+    const { studentId } = req.params;
+    const nurseId = req.user.id;
+    const { is_active } = req.body;
+
+    const pool = await poolPromise;
+
+    // Update the nurse-student assignment
+    const updateRequest = pool.request();
+    const result = await updateRequest
+      .input('nurse_id', sql.Int, nurseId)
+      .input('student_id', sql.Int, studentId)
+      .input('is_active', sql.Bit, is_active)
+      .query(`
+        UPDATE nurse_students
+        SET is_active = @is_active, updated_at = GETDATE()
+        WHERE nurse_id = @nurse_id AND student_id = @student_id
+      `);
+
+    if (result.rowsAffected[0] === 0) {
+      return res.status(404).json({ message: 'Student assignment not found' });
+    }
+
+    const action = is_active ? 'unarchived' : 'archived';
+    res.json({ message: `Student ${action} successfully` });
+  } catch (error) {
+    console.error('Error archiving student:', error);
+    res.status(500).json({ message: 'Error archiving student' });
   }
 });
 
@@ -283,6 +431,7 @@ router.post('/availability', authorizeRole(['nurse']), async (req, res) => {
   try {
     const userId = req.user.id;
     const { date, startTime, endTime, maxPatients } = req.body;
+    const maxPatientsValue = maxPatients || 10; // Default to 10 slots per day
 
     const nurseId = await getNurseId(userId);
     const pool = await poolPromise;
@@ -304,7 +453,7 @@ router.post('/availability', authorizeRole(['nurse']), async (req, res) => {
           .input('id', sql.Int, existing.recordset[0].id)
           .input('start_time', sql.VarChar, startTime)
           .input('end_time', sql.VarChar, endTime)
-          .input('max_patients', sql.Int, maxPatients)
+          .input('max_patients', sql.Int, maxPatientsValue)
           .query(`
             UPDATE nurse_availability
             SET start_time = @start_time,
@@ -323,7 +472,7 @@ router.post('/availability', authorizeRole(['nurse']), async (req, res) => {
          .input('availability_date', sql.Date, date)
          .input('start_time', sql.VarChar, startTime)
          .input('end_time', sql.VarChar, endTime)
-         .input('max_patients', sql.Int, maxPatients)
+         .input('max_patients', sql.Int, maxPatientsValue)
          .query(`
            INSERT INTO nurse_availability (nurse_id, availability_date, start_time, end_time, max_patients)
            VALUES (@nurse_id, @availability_date, @start_time, @end_time, @max_patients)

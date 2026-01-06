@@ -1,4 +1,4 @@
--- CTU E-Clinic Database Tables Creation Script for SQL Server
+-- CTU  Database Tables Creation Script for SQL Server
 
 CREATE TABLE users (
     id INT IDENTITY(1,1) PRIMARY KEY,
@@ -12,6 +12,8 @@ CREATE TABLE users (
     contact_number NVARCHAR(20),
     password_hash NVARCHAR(255) NOT NULL,
     is_email_confirmed BIT DEFAULT 0,
+    verification_code NVARCHAR(10),
+    verification_expires DATETIME2,
     school_year NVARCHAR(20) NULL,
     school_level NVARCHAR(50) NULL,
     department NVARCHAR(100) NULL,
@@ -95,6 +97,7 @@ CREATE TABLE appointments (
     check_in_time DATETIME2,
     check_out_time DATETIME2,
     qr_check_in BIT DEFAULT 0,
+    qr_code NTEXT,
     notes NTEXT,
     created_at DATETIME2 DEFAULT GETDATE(),
     updated_at DATETIME2 DEFAULT GETDATE(),
@@ -139,19 +142,19 @@ CREATE INDEX idx_medical_records_record_type ON medical_records(record_type);
 CREATE TABLE nurse_availability (
     id INT IDENTITY(1,1) PRIMARY KEY,
     nurse_id INT NOT NULL,
-    date DATE NOT NULL,
+    availability_date DATE NOT NULL,
     start_time VARCHAR(8) NOT NULL,
     end_time VARCHAR(8) NOT NULL,
-    maxPatients INT DEFAULT 10,
+    max_patients INT DEFAULT 10,
     is_available BIT DEFAULT 1,
     created_at DATETIME2 DEFAULT GETDATE(),
     updated_at DATETIME2 DEFAULT GETDATE(),
     FOREIGN KEY (nurse_id) REFERENCES nurses(id) ON DELETE NO ACTION,
-    UNIQUE (nurse_id, date)
+    UNIQUE (nurse_id, availability_date)
 );
 
 CREATE INDEX idx_nurse_availability_nurse_id ON nurse_availability(nurse_id);
-CREATE INDEX idx_nurse_availability_date ON nurse_availability(date);
+CREATE INDEX idx_nurse_availability_date ON nurse_availability(availability_date);
 
 CREATE TABLE reports (
     id INT IDENTITY(1,1) PRIMARY KEY,
@@ -214,3 +217,27 @@ CREATE INDEX idx_audit_log_user_id ON audit_log(user_id);
 CREATE INDEX idx_audit_log_action ON audit_log(action);
 CREATE INDEX idx_audit_log_table_name ON audit_log(table_name);
 CREATE INDEX idx_audit_log_created_at ON audit_log(created_at);
+
+-- Add waiting list table for appointment booking
+CREATE TABLE appointment_waiting_list (
+    id INT IDENTITY(1,1) PRIMARY KEY,
+    student_id INT NOT NULL,
+    nurse_id INT NOT NULL,
+    requested_date DATE NOT NULL,
+    requested_time TIME,
+    reason NVARCHAR(500),
+    priority INT DEFAULT 0, -- Higher priority gets preference when slots open
+    status NVARCHAR(20) DEFAULT 'waiting' CHECK (status IN ('waiting', 'offered', 'expired', 'cancelled')),
+    offered_at DATETIME2,
+    expires_at DATETIME2,
+    created_at DATETIME2 DEFAULT GETDATE(),
+    updated_at DATETIME2 DEFAULT GETDATE(),
+    FOREIGN KEY (student_id) REFERENCES students(id) ON DELETE NO ACTION,
+    FOREIGN KEY (nurse_id) REFERENCES nurses(id) ON DELETE NO ACTION
+);
+
+CREATE INDEX idx_waiting_list_student_id ON appointment_waiting_list(student_id);
+CREATE INDEX idx_waiting_list_nurse_id ON appointment_waiting_list(nurse_id);
+CREATE INDEX idx_waiting_list_requested_date ON appointment_waiting_list(requested_date);
+CREATE INDEX idx_waiting_list_status ON appointment_waiting_list(status);
+CREATE INDEX idx_waiting_list_priority ON appointment_waiting_list(priority);

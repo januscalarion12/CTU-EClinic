@@ -19,11 +19,8 @@ function initializeAuth() {
         logoutBtn.addEventListener('click', logout);
     }
 
-    // Check if user is logged in
-    const token = localStorage.getItem('token');
-    if (!token && !isPublicPage()) {
-        window.location.href = 'login.html';
-    }
+    // Note: Authentication is handled server-side via sessions
+    // No client-side token check needed
 }
 
 function isPublicPage() {

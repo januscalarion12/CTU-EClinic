@@ -10,6 +10,9 @@ const authRoutes = require('./Server/routes/auth');
 const adminRoutes = require('./Server/routes/admin');
 const nurseRoutes = require('./Server/routes/nurse');
 const studentRoutes = require('./Server/routes/student');
+const medicalRecordsRoutes = require('./Server/routes/medical-records');
+const reportsRoutes = require('./Server/routes/reports');
+const { runScheduledTasks } = require('./Server/utils/scheduler');
 const { authenticateToken } = require('./Server/middleware/auth');
 
 const app = express();
@@ -19,9 +22,9 @@ const sessionConfig = {
   store: new MSSQLStore({
     server: process.env.DB_HOST || 'LAPTOP-CO8MFUK2\SQLEXPRESS',
     port: parseInt(process.env.DB_PORT) || 1433,
-    user: process.env.DB_USER || 'eclinic',
-    password: process.env.DB_PASSWORD || 'Eclinic2025@',
-    database: process.env.DB_NAME || 'CTU_ClinicDB',
+    user: process.env.DB_USER || 'clinic_app',
+    password: process.env.DB_PASSWORD || 'Clinic@2026!',
+    database: process.env.DB_NAME || 'CTU',
     options: {
       encrypt: true,
       trustServerCertificate: true,
@@ -51,7 +54,14 @@ app.use(cors({
   credentials: true
 }));
 app.use(express.json());
+app.use((req, res, next) => {
+  if (req.path === '/favicon.ico') {
+    console.log('Favicon.ico requested at:', new Date().toISOString());
+  }
+  next();
+});
 app.use(express.static(path.join(__dirname, 'Public')));
+app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
 // Routes
 app.use('/api/auth', authRoutes);
@@ -59,6 +69,8 @@ app.use('/api/admin', authenticateToken, adminRoutes);
 app.use('/api/nurse', authenticateToken, nurseRoutes);
 app.use('/api/student', authenticateToken, studentRoutes);
 app.use('/api/students', authenticateToken, studentRoutes);
+app.use('/api/medical-records', authenticateToken, medicalRecordsRoutes);
+app.use('/api/reports', authenticateToken, reportsRoutes);
 
 // Serve static files
 app.get('/', (req, res) => {
@@ -77,6 +89,12 @@ app.use((err, req, res, next) => {
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
   console.log(`Server running on port at http://localhost:${PORT}`);
+
+  // Run scheduled tasks every hour
+  setInterval(runScheduledTasks, 60 * 60 * 1000); // 1 hour
+
+  // Run initial scheduled tasks
+  runScheduledTasks();
 });
 
 module.exports = app;

@@ -65,7 +65,15 @@
     <main class="main-content">
         <div class="container">
             <h2>My Appointments</h2>
+            <div class="appointment-tabs">
+                <button class="tab-btn active" onclick="switchTab('active')">Active Appointments</button>
+                <button class="tab-btn" onclick="switchTab('past')">Past Appointments</button>
+            </div>
             <div class="appointments-list">
+                <div class="list-header">
+                    <h3 id="listTitle">Active Appointments</h3>
+                    <div class="list-stats" id="appointmentsStats"></div>
+                </div>
                 <table id="appointmentsTable">
                     <thead>
                         <tr>
@@ -77,13 +85,57 @@
                             <th>Actions</th>
                         </tr>
                     </thead>
-                    <tbody>
+                    <tbody id="appointmentsTableBody">
                         <!-- Appointments will be loaded here -->
                     </tbody>
                 </table>
+                <div class="pagination" id="paginationControls" style="display: none;">
+                    <button id="loadMoreBtn" class="btn-secondary">Load More</button>
+                    <div class="pagination-info" id="paginationInfo"></div>
+                </div>
             </div>
         </div>
     </main>
+
+    <!-- Reschedule Modal -->
+    <div id="rescheduleModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>Reschedule Appointment</h3>
+                <button class="btn-close" onclick="closeRescheduleModal()">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            <div class="modal-body">
+                <form id="rescheduleForm">
+                    <input type="hidden" id="rescheduleAppointmentId" name="appointmentId">
+                    <div class="form-group">
+                        <label for="rescheduleDate">New Date</label>
+                        <input type="date" id="rescheduleDate" name="rescheduleDate" required>
+                        <div id="rescheduleDateAvailability" class="availability-info"></div>
+                    </div>
+                    <div class="form-group">
+                        <label for="rescheduleNurse">Nurse</label>
+                        <input type="text" id="rescheduleNurse" readonly>
+                    </div>
+                    <div class="form-group">
+                        <label for="rescheduleTime">New Time Slot</label>
+                        <select id="rescheduleTime" name="rescheduleTime" required>
+                            <option value="">Select Date First</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label for="rescheduleReason">Reason for Rescheduling</label>
+                        <textarea id="rescheduleReason" name="rescheduleReason" placeholder="Please explain why you need to reschedule" required></textarea>
+                    </div>
+                    <div class="form-actions">
+                        <button type="button" class="btn-secondary" onclick="closeRescheduleModal()">Cancel</button>
+                        <button type="submit" class="btn-primary">Reschedule Appointment</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
 
     <footer>
         <p>&copy; 2024 Clinic Management System. All rights reserved.</p>
@@ -118,25 +170,85 @@
             }
         });
 
-        // Load appointments
-        async function loadAppointments() {
-            const tableBody = document.querySelector('#appointmentsTable tbody');
+        // Pagination state
+        let currentOffset = 0;
+        const limit = 10;
+        let allAppointments = [];
+        let hasMore = true;
+        let currentTab = 'active';
+
+        // Tab switching functionality
+        function switchTab(tab) {
+            currentTab = tab;
+            document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
+            document.querySelector(`[onclick="switchTab('${tab}')"]`).classList.add('active');
+            document.getElementById('listTitle').textContent = tab === 'active' ? 'Active Appointments' : 'Past Appointments';
+            loadAppointments();
+        }
+
+        // Load appointments with pagination and filtering
+        async function loadAppointments(loadMore = false) {
+            const tableBody = document.querySelector('#appointmentsTableBody');
+            const loadMoreBtn = document.getElementById('loadMoreBtn');
+            const paginationControls = document.getElementById('paginationControls');
+
+            if (!loadMore) {
+                currentOffset = 0;
+                allAppointments = [];
+                tableBody.innerHTML = '<tr><td colspan="6">Loading...</td></tr>';
+            }
 
             try {
-                const response = await fetch('/api/student/bookings', {
+                const response = await fetch(`/api/student/bookings?limit=${limit}&offset=${currentOffset}`, {
                     method: 'GET',
-                    credentials: 'include' // Use session cookies instead of localStorage
+                    credentials: 'include'
                 });
 
                 if (response.ok) {
-                    const appointments = await response.json();
-                    displayAppointments(appointments);
+                    const data = await response.json();
+                    let appointments = data.appointments;
+                    const pagination = data.pagination;
+
+                    // Filter appointments based on current tab
+                    if (currentTab === 'active') {
+                        appointments = appointments.filter(apt => ['pending', 'confirmed'].includes(apt.status));
+                    } else {
+                        appointments = appointments.filter(apt => ['completed', 'cancelled', 'no_show'].includes(apt.status));
+                    }
+
+                    if (!loadMore) {
+                        allAppointments = appointments;
+                    } else {
+                        allAppointments = allAppointments.concat(appointments);
+                    }
+
+                    hasMore = pagination.hasMore;
+                    currentOffset += limit;
+
+                    displayAppointments(allAppointments);
+
+                    // Update pagination controls
+                    const filteredTotal = currentTab === 'active' ?
+                        data.appointments.filter(apt => ['pending', 'confirmed'].includes(apt.status)).length :
+                        data.appointments.filter(apt => ['completed', 'cancelled', 'no_show'].includes(apt.status)).length;
+
+                    document.getElementById('appointmentsStats').textContent = `Showing ${allAppointments.length} of ${filteredTotal} appointments`;
+
+                    if (hasMore) {
+                        paginationControls.style.display = 'flex';
+                        loadMoreBtn.style.display = 'block';
+                        document.getElementById('paginationInfo').textContent = `${allAppointments.length} / ${filteredTotal}`;
+                    } else {
+                        paginationControls.style.display = 'flex';
+                        loadMoreBtn.style.display = 'none';
+                        document.getElementById('paginationInfo').textContent = `All ${filteredTotal} appointments loaded`;
+                    }
                 } else {
                     tableBody.innerHTML = '<tr><td colspan="6">Error loading appointments</td></tr>';
                 }
             } catch (error) {
                 console.error('Error loading appointments:', error);
-                tableBody.innerHTML = '<tr><td colspan="5">Error loading appointments</td></tr>';
+                tableBody.innerHTML = '<tr><td colspan="6">Error loading appointments</td></tr>';
             }
         }
 
@@ -170,7 +282,8 @@
                         ${apt.status === 'pending' ?
                             '<span class="text-muted">Awaiting approval</span>' :
                             apt.status === 'confirmed' ?
-                            '<span class="text-success">Confirmed</span>' :
+                            `<button class="btn-small btn-warning" onclick="rescheduleAppointment(${apt.id}, '${apt.appointment_date}', '${apt.nurse_name}')">Reschedule</button>
+                             <button class="btn-small btn-danger" onclick="cancelAppointment(${apt.id})">Cancel</button>` :
                             '<span class="text-muted">No actions</span>'
                         }
                     </td>
@@ -224,8 +337,162 @@
             }
         });
 
+        // Reschedule appointment functions
+        function rescheduleAppointment(appointmentId, currentDate, nurseName) {
+            document.getElementById('rescheduleAppointmentId').value = appointmentId;
+            document.getElementById('rescheduleNurse').value = nurseName;
+            document.getElementById('rescheduleDate').value = new Date(currentDate).toISOString().split('T')[0];
+            document.getElementById('rescheduleModal').style.display = 'block';
+
+            // Load available slots for the current date
+            loadRescheduleSlots(appointmentId, new Date(currentDate).toISOString().split('T')[0]);
+        }
+
+        function closeRescheduleModal() {
+            document.getElementById('rescheduleModal').style.display = 'none';
+            document.getElementById('rescheduleForm').reset();
+        }
+
+        async function loadRescheduleSlots(appointmentId, date) {
+            const timeSelect = document.getElementById('rescheduleTime');
+            const availabilityInfo = document.getElementById('rescheduleDateAvailability');
+
+            try {
+                const response = await fetch(`/api/student/availability?date=${date}`, {
+                    method: 'GET',
+                    credentials: 'include'
+                });
+
+                if (response.ok) {
+                    const slots = await response.json();
+
+                    if (slots.length === 0) {
+                        availabilityInfo.innerHTML = '<span class="no-availability">No slots available on this date</span>';
+                        timeSelect.innerHTML = '<option value="">No slots available</option>';
+                        timeSelect.disabled = true;
+                        return;
+                    }
+
+                    // Generate time slots from nurse availability
+                    const timeSlots = generateTimeSlots(slots);
+                    timeSelect.innerHTML = '<option value="">Select Time</option>' +
+                        timeSlots.map(slot => `<option value="${slot.value}" ${!slot.available ? 'disabled style="color: #999;"' : ''}>${slot.label}${!slot.available ? ' (FULLY BOOKED)' : ''}</option>`).join('');
+                    timeSelect.disabled = false;
+
+                    availabilityInfo.innerHTML = `<span class="available-info">${slots.length} slot(s) available</span>`;
+                } else {
+                    availabilityInfo.innerHTML = '<span class="error-info">Error loading availability</span>';
+                    timeSelect.innerHTML = '<option value="">Error loading slots</option>';
+                    timeSelect.disabled = true;
+                }
+            } catch (error) {
+                console.error('Error loading reschedule slots:', error);
+                availabilityInfo.innerHTML = '<span class="error-info">Error loading availability</span>';
+                timeSelect.innerHTML = '<option value="">Error loading slots</option>';
+                timeSelect.disabled = true;
+            }
+        }
+
+        // Reschedule form submission
+        document.getElementById('rescheduleForm').addEventListener('submit', async function(e) {
+            e.preventDefault();
+
+            const formData = new FormData(this);
+            const appointmentId = formData.get('appointmentId');
+            const newDate = formData.get('rescheduleDate');
+            const newTime = formData.get('rescheduleTime');
+            const reason = formData.get('rescheduleReason');
+
+            if (!appointmentId || !newDate || !newTime) {
+                alert('Please fill in all required fields');
+                return;
+            }
+
+            const rescheduleData = {
+                appointmentId: parseInt(appointmentId),
+                newDateTime: `${newDate}T${newTime}`,
+                reason: reason
+            };
+
+            try {
+                const response = await fetch('/api/student/appointments/reschedule', {
+                    method: 'PUT',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    credentials: 'include',
+                    body: JSON.stringify(rescheduleData)
+                });
+
+                if (response.ok) {
+                    alert('Appointment rescheduled successfully!');
+                    closeRescheduleModal();
+                    loadAppointments(); // Refresh the appointments list
+                } else {
+                    const error = await response.json();
+                    alert('Error rescheduling appointment: ' + error.message);
+                }
+            } catch (error) {
+                console.error('Error rescheduling appointment:', error);
+                alert('Error rescheduling appointment');
+            }
+        });
+
+        // Update reschedule slots when date changes
+        document.getElementById('rescheduleDate').addEventListener('change', function() {
+            const appointmentId = document.getElementById('rescheduleAppointmentId').value;
+            const selectedDate = this.value;
+            if (appointmentId && selectedDate) {
+                loadRescheduleSlots(appointmentId, selectedDate);
+            }
+        });
+
+        // Close modal when clicking outside
+        document.addEventListener('click', function(e) {
+            const modal = document.getElementById('rescheduleModal');
+            if (modal && e.target === modal) {
+                closeRescheduleModal();
+            }
+        });
+
+        // Cancel appointment function
+        async function cancelAppointment(appointmentId) {
+            if (!confirm('Are you sure you want to cancel this appointment?')) {
+                return;
+            }
+
+            try {
+                const response = await fetch(`/api/student/appointments/cancel`, {
+                    method: 'PUT',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    credentials: 'include',
+                    body: JSON.stringify({ appointmentId: appointmentId })
+                });
+
+                if (response.ok) {
+                    alert('Appointment cancelled successfully!');
+                    loadAppointments(); // Refresh the appointments list
+                } else {
+                    const error = await response.json();
+                    alert('Error cancelling appointment: ' + error.message);
+                }
+            } catch (error) {
+                console.error('Error cancelling appointment:', error);
+                alert('Error cancelling appointment');
+            }
+        }
+
+        // Load more button event listener
+        document.getElementById('loadMoreBtn').addEventListener('click', function() {
+            loadAppointments(true);
+        });
+
         // Load appointments on page load
-        document.addEventListener('DOMContentLoaded', loadAppointments);
+        document.addEventListener('DOMContentLoaded', function() {
+            loadAppointments();
+        });
     </script>
 </body>
 </html>

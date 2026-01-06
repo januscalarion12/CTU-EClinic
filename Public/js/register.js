@@ -190,7 +190,7 @@ async function handleRegister(e) {
 
             // Redirect to login after 3 seconds
             setTimeout(() => {
-                window.location.href = 'login.html';
+                window.location.href = 'verify-email.html';
             }, 3000);
         } else {
             showError(result.message || 'Registration failed. Please try again.');

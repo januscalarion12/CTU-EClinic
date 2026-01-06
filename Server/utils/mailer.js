@@ -1,4 +1,5 @@
 const nodemailer = require('nodemailer');
+// const twilio = require('twilio'); // Uncomment when Twilio is installed
 
 // Create transporter
 const transporter = nodemailer.createTransport({
@@ -128,6 +129,61 @@ const sendAppointmentStatusEmail = async (email, appointmentDetails) => {
   }
 };
 
+// Send email confirmation for registration
+const sendEmailConfirmation = async (email, verificationCode) => {
+  const mailOptions = {
+    from: process.env.SMTP_USER,
+    to: email,
+    subject: 'Verify Your Email - CTU E-Clinic',
+    html: `
+      <h2>Welcome to CTU E-Clinic</h2>
+      <p>Thank you for registering! Please verify your email address to activate your account.</p>
+      <p>Your verification code is:</p>
+      <h1 style="font-size: 32px; font-weight: bold; color: #007bff; text-align: center; margin: 20px 0;">${verificationCode}</h1>
+      <p>Enter this code on the verification page to activate your account.</p>
+      <p>This code will expire in 24 hours.</p>
+      <p>If you didn't create an account, please ignore this email.</p>
+    `
+  };
+
+  try {
+    await transporter.sendMail(mailOptions);
+    console.log('Email confirmation sent to:', email);
+  } catch (error) {
+    console.error('Error sending email confirmation:', error);
+    throw error;
+  }
+};
+
+// Send appointment reminder email
+const sendAppointmentReminderEmail = async (email, appointmentDetails) => {
+  const mailOptions = {
+    from: process.env.SMTP_USER,
+    to: email,
+    subject: 'Appointment Reminder - CTU E-Clinic',
+    html: `
+      <h2>Appointment Reminder</h2>
+      <p>This is a reminder for your upcoming appointment:</p>
+      <ul>
+        <li><strong>Date:</strong> ${appointmentDetails.date}</li>
+        <li><strong>Time:</strong> ${appointmentDetails.time}</li>
+        <li><strong>Nurse:</strong> ${appointmentDetails.nurseName}</li>
+        <li><strong>Reason:</strong> ${appointmentDetails.reason}</li>
+      </ul>
+      <p>Please arrive 15 minutes early for your appointment.</p>
+      <p>If you need to cancel or reschedule, please do so through your dashboard.</p>
+    `
+  };
+
+  try {
+    await transporter.sendMail(mailOptions);
+    console.log('Appointment reminder email sent to:', email);
+  } catch (error) {
+    console.error('Error sending appointment reminder email:', error);
+    throw error;
+  }
+};
+
 // Send new appointment request notification email to nurse
 const sendAppointmentRequestEmail = async (email, appointmentDetails) => {
   const mailOptions = {
@@ -156,10 +212,58 @@ const sendAppointmentRequestEmail = async (email, appointmentDetails) => {
   }
 };
 
+// SMS functionality (requires Twilio setup)
+// Uncomment and configure when Twilio credentials are available
+/*
+const twilioClient = twilio(
+  process.env.TWILIO_ACCOUNT_SID,
+  process.env.TWILIO_AUTH_TOKEN
+);
+
+const sendSMS = async (phoneNumber, message) => {
+  try {
+    const result = await twilioClient.messages.create({
+      body: message,
+      from: process.env.TWILIO_PHONE_NUMBER,
+      to: phoneNumber
+    });
+    console.log('SMS sent successfully:', result.sid);
+    return result;
+  } catch (error) {
+    console.error('Error sending SMS:', error);
+    throw error;
+  }
+};
+
+// Send appointment confirmation SMS
+const sendAppointmentConfirmationSMS = async (phoneNumber, appointmentDetails) => {
+  const message = `CTU Clinic: Your appointment is confirmed for ${appointmentDetails.date} at ${appointmentDetails.time} with ${appointmentDetails.nurseName}. Please arrive 15 minutes early.`;
+  return sendSMS(phoneNumber, message);
+};
+
+// Send appointment reminder SMS
+const sendAppointmentReminderSMS = async (phoneNumber, appointmentDetails) => {
+  const message = `CTU Clinic Reminder: You have an appointment tomorrow ${appointmentDetails.date} at ${appointmentDetails.time} with ${appointmentDetails.nurseName}.`;
+  return sendSMS(phoneNumber, message);
+};
+
+// Send waiting list notification SMS
+const sendWaitingListNotificationSMS = async (phoneNumber, waitingListDetails) => {
+  const message = `CTU Clinic: A slot has opened up for your requested appointment on ${waitingListDetails.date}. Please check your dashboard to book.`;
+  return sendSMS(phoneNumber, message);
+};
+*/
+
 module.exports = {
   sendPasswordResetEmail,
   sendBookingConfirmationEmail,
   sendReportNotificationEmail,
   sendAppointmentStatusEmail,
-  sendAppointmentRequestEmail
+  sendAppointmentRequestEmail,
+  sendEmailConfirmation,
+  sendAppointmentReminderEmail
+  // SMS functions (uncomment when Twilio is configured):
+  // sendAppointmentConfirmationSMS,
+  // sendAppointmentReminderSMS,
+  // sendWaitingListNotificationSMS
 };
