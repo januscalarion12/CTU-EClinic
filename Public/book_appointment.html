@@ -261,7 +261,7 @@
                     const slotEnd = new Date(currentTime.getTime() + slotDuration * 60000);
 
                     if (slotEnd <= endTime) {
-                        const timeValue = currentTime.toTimeString().slice(0, 5);
+                        const timeValue = currentTime.toTimeString().slice(0, 8);
                         const availableSlots = slot.max_patients - slot.booked_slots;
                         const timeLabel = `${currentTime.toLocaleTimeString('en-US', {
                             hour: 'numeric',

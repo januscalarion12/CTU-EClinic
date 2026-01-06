@@ -93,12 +93,16 @@ CREATE TABLE appointments (
     nurse_id INT NOT NULL,
     appointment_date DATETIME2 NOT NULL,
     reason NVARCHAR(500),
+    urgency NVARCHAR(20) DEFAULT 'normal' CHECK (urgency IN ('low', 'normal', 'high', 'urgent')),
+    symptoms NVARCHAR(MAX),
+    additional_notes NVARCHAR(MAX),
+    attachments NVARCHAR(MAX),
     status NVARCHAR(20) DEFAULT 'pending' CHECK (status IN ('pending', 'confirmed', 'completed', 'cancelled', 'no_show')),
     check_in_time DATETIME2,
     check_out_time DATETIME2,
     qr_check_in BIT DEFAULT 0,
-    qr_code NTEXT,
-    notes NTEXT,
+    qr_code NVARCHAR(MAX),
+    notes NVARCHAR(MAX),
     created_at DATETIME2 DEFAULT GETDATE(),
     updated_at DATETIME2 DEFAULT GETDATE(),
     FOREIGN KEY (student_id) REFERENCES students(id) ON DELETE NO ACTION,
@@ -143,14 +147,14 @@ CREATE TABLE nurse_availability (
     id INT IDENTITY(1,1) PRIMARY KEY,
     nurse_id INT NOT NULL,
     availability_date DATE NOT NULL,
-    start_time VARCHAR(8) NOT NULL,
-    end_time VARCHAR(8) NOT NULL,
+    start_time TIME NOT NULL,
+    end_time TIME NOT NULL,
     max_patients INT DEFAULT 10,
     is_available BIT DEFAULT 1,
     created_at DATETIME2 DEFAULT GETDATE(),
     updated_at DATETIME2 DEFAULT GETDATE(),
     FOREIGN KEY (nurse_id) REFERENCES nurses(id) ON DELETE NO ACTION,
-    UNIQUE (nurse_id, availability_date)
+    UNIQUE (nurse_id, availability_date, start_time)
 );
 
 CREATE INDEX idx_nurse_availability_nurse_id ON nurse_availability(nurse_id);

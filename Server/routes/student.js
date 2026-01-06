@@ -203,9 +203,21 @@ router.put('/profile', authorizeRole(['student']), async (req, res) => {
 // Get student's bookings with pagination
 router.get('/bookings', authorizeRole(['student']), async (req, res) => {
   try {
-    const studentId = req.user.id;
+    const userId = req.user.id;
     const { limit = 10, offset = 0 } = req.query;
+
+    // Get student record
     const pool = await poolPromise;
+    const studentQuery = pool.request();
+    const studentResult = await studentQuery
+      .input('user_id', sql.Int, userId)
+      .query('SELECT id FROM students WHERE user_id = @user_id');
+
+    if (studentResult.recordset.length === 0) {
+      return res.status(404).json({ message: 'Student record not found' });
+    }
+
+    const studentId = studentResult.recordset[0].id;
 
     // Get total count
     const countRequest = pool.request();
@@ -252,9 +264,21 @@ router.get('/bookings', authorizeRole(['student']), async (req, res) => {
 // Get specific appointment details with QR code
 router.get('/appointments/:id', authorizeRole(['student']), async (req, res) => {
   try {
-    const studentId = req.user.id;
+    const userId = req.user.id;
     const appointmentId = req.params.id;
+
+    // Get student record
     const pool = await poolPromise;
+    const studentQuery = pool.request();
+    const studentResult = await studentQuery
+      .input('user_id', sql.Int, userId)
+      .query('SELECT id FROM students WHERE user_id = @user_id');
+
+    if (studentResult.recordset.length === 0) {
+      return res.status(404).json({ message: 'Student record not found' });
+    }
+
+    const studentId = studentResult.recordset[0].id;
 
     const request = pool.request();
     const result = await request
@@ -282,7 +306,22 @@ router.get('/appointments/:id', authorizeRole(['student']), async (req, res) => 
 router.post('/bookings', authorizeRole(['student']), rateLimit(), upload.array('attachments', 5), async (req, res) => {
   try {
     const { nurseId, appointmentDate, reason, urgency = 'normal', symptoms, additionalNotes } = req.body;
-    const studentId = req.user.id;
+    const userId = req.user.id;
+
+    // Get student record
+    const pool = await poolPromise;
+    const studentQuery = pool.request();
+    const studentResult = await studentQuery
+      .input('user_id', sql.Int, userId)
+      .query('SELECT id FROM students WHERE user_id = @user_id');
+
+    if (studentResult.recordset.length === 0) {
+      return res.status(404).json({ message: 'Student record not found' });
+    }
+
+    const studentId = studentResult.recordset[0].id;
+
+    console.log('Resolved student ID:', studentId);
 
     // Handle attachments
     let attachments = null;
@@ -298,27 +337,30 @@ router.post('/bookings', authorizeRole(['student']), rateLimit(), upload.array('
 
     const notes = symptoms ? `Symptoms: ${symptoms}\n\nAdditional Notes: ${additionalNotes || ''}` : additionalNotes || '';
 
+    console.log('Booking attempt:', { nurseId, appointmentDate, studentId });
+
     // Check if the time slot is still available
-    const pool = await poolPromise;
     const availabilityCheck = pool.request();
     const availabilityResult = await availabilityCheck
       .input('nurse_id', sql.Int, nurseId)
-      .input('appointment_date', sql.DateTime2, appointmentDate)
+      .input('appointment_date', sql.NVarChar, appointmentDate)
       .query(`
         SELECT na.max_patients,
                (SELECT COUNT(*) FROM appointments a
                 WHERE a.nurse_id = na.nurse_id
                   AND CAST(a.appointment_date AS DATE) = CAST(@appointment_date AS DATE)
-                  AND a.appointment_date >= DATEADD(hour, DATEPART(hour, na.start_time), DATEADD(minute, DATEPART(minute, na.start_time), CAST(CAST(@appointment_date AS DATE) AS DATETIME2)))
-                  AND a.appointment_date < DATEADD(hour, DATEPART(hour, na.end_time), DATEADD(minute, DATEPART(minute, na.end_time), CAST(CAST(@appointment_date AS DATE) AS DATETIME2)))
+                  AND a.appointment_date >= DATEADD(hour, DATEPART(hour, CAST(na.start_time AS TIME)), DATEADD(minute, DATEPART(minute, CAST(na.start_time AS TIME)), CAST(CAST(@appointment_date AS DATE) AS DATETIME2)))
+                  AND a.appointment_date < DATEADD(hour, DATEPART(hour, CAST(na.end_time AS TIME)), DATEADD(minute, DATEPART(minute, CAST(na.end_time AS TIME)), CAST(CAST(@appointment_date AS DATE) AS DATETIME2)))
                   AND a.status IN ('pending', 'confirmed')) as booked_slots
         FROM nurse_availability na
         WHERE na.nurse_id = @nurse_id
           AND CAST(na.availability_date AS DATE) = CAST(@appointment_date AS DATE)
-          AND na.start_time <= CAST(@appointment_date AS TIME)
-          AND na.end_time > CAST(@appointment_date AS TIME)
+          AND CAST(na.start_time AS TIME) <= CAST(CAST(@appointment_date AS DATETIME2) AS TIME)
+          AND CAST(na.end_time AS TIME) > CAST(CAST(@appointment_date AS DATETIME2) AS TIME)
           AND na.is_available = 1
       `);
+
+    console.log('Availability result:', availabilityResult.recordset);
 
     if (availabilityResult.recordset.length === 0) {
       return res.status(400).json({ message: 'This time slot is not available. Please select a different time.' });
@@ -326,8 +368,6 @@ router.post('/bookings', authorizeRole(['student']), rateLimit(), upload.array('
 
     const availability = availabilityResult.recordset[0];
     if (availability.booked_slots >= availability.max_patients) {
-      // Check if waiting list is enabled (you can add a system setting for this)
-      // For now, offer waiting list option
       return res.status(409).json({
         message: 'This time slot is fully booked. Would you like to join the waiting list?',
         waitingList: true,
@@ -341,15 +381,12 @@ router.post('/bookings', authorizeRole(['student']), rateLimit(), upload.array('
     const result = await insertRequest
       .input('student_id', sql.Int, studentId)
       .input('nurse_id', sql.Int, nurseId)
-      .input('appointment_date', sql.DateTime2, appointmentDate)
+      .input('appointment_date', sql.NVarChar, appointmentDate)
       .input('reason', sql.NVarChar, reason)
-      .input('urgency', sql.NVarChar, urgency)
-      .input('symptoms', sql.NVarChar, symptoms || null)
-      .input('additional_notes', sql.NVarChar, additionalNotes || null)
-      .input('attachments', sql.NVarChar, attachments)
+      .input('notes', sql.NVarChar, notes || null)
       .query(`
-        INSERT INTO appointments (student_id, nurse_id, appointment_date, reason, urgency, symptoms, additional_notes, attachments, status)
-        VALUES (@student_id, @nurse_id, @appointment_date, @reason, @urgency, @symptoms, @additional_notes, @attachments, 'pending');
+        INSERT INTO appointments (student_id, nurse_id, appointment_date, reason, notes, status)
+        VALUES (@student_id, @nurse_id, @appointment_date, @reason, @notes, 'pending');
         SELECT SCOPE_IDENTITY() AS id;
       `);
 
@@ -389,7 +426,7 @@ router.post('/bookings', authorizeRole(['student']), rateLimit(), upload.array('
       .input('title', sql.NVarChar, 'New Appointment Request')
       .input('message', sql.NVarChar, `A new appointment has been requested for ${new Date(appointmentDate).toLocaleString()}`)
       .input('type', sql.NVarChar, 'appointment_reminder')
-      .input('related_id', sql.Int, result.recordset[0].id)
+      .input('related_id', sql.Int, appointmentId)
       .input('related_type', sql.NVarChar, 'appointment')
       .query(`
         INSERT INTO notifications (user_id, title, message, type, related_id, related_type)
@@ -442,8 +479,20 @@ router.post('/bookings', authorizeRole(['student']), rateLimit(), upload.array('
 // Get student's reports
 router.get('/reports', authorizeRole(['student']), async (req, res) => {
   try {
-    const studentId = req.user.id;
+    const userId = req.user.id;
+
+    // Get student record
     const pool = await poolPromise;
+    const studentQuery = pool.request();
+    const studentResult = await studentQuery
+      .input('user_id', sql.Int, userId)
+      .query('SELECT id FROM students WHERE user_id = @user_id');
+
+    if (studentResult.recordset.length === 0) {
+      return res.status(404).json({ message: 'Student record not found' });
+    }
+
+    const studentId = studentResult.recordset[0].id;
 
     const request = pool.request();
     const result = await request
@@ -466,8 +515,20 @@ router.get('/reports', authorizeRole(['student']), async (req, res) => {
 // Get available nurses (only assigned nurses)
 router.get('/nurses', authorizeRole(['student']), async (req, res) => {
   try {
-    const studentId = req.user.id;
+    const userId = req.user.id;
+
+    // Get student record
     const pool = await poolPromise;
+    const studentQuery = pool.request();
+    const studentResult = await studentQuery
+      .input('user_id', sql.Int, userId)
+      .query('SELECT id FROM students WHERE user_id = @user_id');
+
+    if (studentResult.recordset.length === 0) {
+      return res.status(404).json({ message: 'Student record not found' });
+    }
+
+    const studentId = studentResult.recordset[0].id;
 
     const request = pool.request();
     const result = await request
@@ -532,8 +593,8 @@ router.get('/available-dates', authorizeRole(['student']), async (req, res) => {
             FROM appointments a
             WHERE a.nurse_id = na.nurse_id
               AND CAST(a.appointment_date AS DATE) = na.availability_date
-              AND a.appointment_date >= DATEADD(hour, DATEPART(hour, na.start_time), DATEADD(minute, DATEPART(minute, na.start_time), CAST(na.availability_date AS DATETIME2)))
-              AND a.appointment_date < DATEADD(hour, DATEPART(hour, na.end_time), DATEADD(minute, DATEPART(minute, na.end_time), CAST(na.availability_date AS DATETIME2)))
+              AND a.appointment_date >= DATEADD(hour, DATEPART(hour, CAST(na.start_time AS TIME)), DATEADD(minute, DATEPART(minute, CAST(na.start_time AS TIME)), CAST(na.availability_date AS DATETIME2)))
+              AND a.appointment_date < DATEADD(hour, DATEPART(hour, CAST(na.end_time AS TIME)), DATEADD(minute, DATEPART(minute, CAST(na.end_time AS TIME)), CAST(na.availability_date AS DATETIME2)))
               AND a.status IN ('pending', 'confirmed')
           )
         GROUP BY na.availability_date
@@ -559,7 +620,7 @@ router.get('/availability', authorizeRole(['student']), async (req, res) => {
 
     // Check if the date is a weekend or holiday
     const dateObj = new Date(date);
-    const dayOfWeek = dateObj.getDay(); // 0 = Sunday, 6 = Saturday
+    const dayOfWeek = dateObj.getUTCDay(); // 0 = Sunday, 6 = Saturday
 
     // Philippine holidays (same as above)
     const philippineHolidays = [
@@ -596,8 +657,8 @@ router.get('/availability', authorizeRole(['student']), async (req, res) => {
             FROM appointments a
             WHERE a.nurse_id = na.nurse_id
               AND CAST(a.appointment_date AS DATE) = na.availability_date
-              AND a.appointment_date >= DATEADD(hour, DATEPART(hour, na.start_time), DATEADD(minute, DATEPART(minute, na.start_time), CAST(na.availability_date AS DATETIME2)))
-              AND a.appointment_date < DATEADD(hour, DATEPART(hour, na.end_time), DATEADD(minute, DATEPART(minute, na.end_time), CAST(na.availability_date AS DATETIME2)))
+              AND a.appointment_date >= DATEADD(hour, DATEPART(hour, CAST(na.start_time AS TIME)), DATEADD(minute, DATEPART(minute, CAST(na.start_time AS TIME)), CAST(na.availability_date AS DATETIME2)))
+              AND a.appointment_date < DATEADD(hour, DATEPART(hour, CAST(na.end_time AS TIME)), DATEADD(minute, DATEPART(minute, CAST(na.end_time AS TIME)), CAST(na.availability_date AS DATETIME2)))
               AND a.status IN ('pending', 'confirmed')
           ) as booked_slots
         FROM nurse_availability na
@@ -617,13 +678,13 @@ router.get('/availability', authorizeRole(['student']), async (req, res) => {
 // Get student's notifications
 router.get('/notifications', authorizeRole(['student']), async (req, res) => {
   try {
-    const studentId = req.user.id;
+    const userId = req.user.id;
     const { limit = 20, offset = 0 } = req.query;
 
     const pool = await poolPromise;
     const request = pool.request();
     const result = await request
-      .input('user_id', sql.Int, studentId)
+      .input('user_id', sql.Int, userId)
       .input('limit', sql.Int, parseInt(limit))
       .input('offset', sql.Int, parseInt(offset))
       .query(`
@@ -644,14 +705,14 @@ router.get('/notifications', authorizeRole(['student']), async (req, res) => {
 // Mark notification as read
 router.put('/notifications/:id/read', authorizeRole(['student']), async (req, res) => {
   try {
-    const studentId = req.user.id;
+    const userId = req.user.id;
     const notificationId = req.params.id;
 
     const pool = await poolPromise;
     const request = pool.request();
     const result = await request
       .input('id', sql.Int, notificationId)
-      .input('user_id', sql.Int, studentId)
+      .input('user_id', sql.Int, userId)
       .query(`
         UPDATE notifications
         SET is_read = 1, read_at = GETDATE()
@@ -673,10 +734,22 @@ router.put('/notifications/:id/read', authorizeRole(['student']), async (req, re
 router.post('/waiting-list', authorizeRole(['student']), rateLimit(), async (req, res) => {
   try {
     const { nurseId, appointmentDate, reason } = req.body;
-    const studentId = req.user.id;
+    const userId = req.user.id;
+
+    // Get student record
+    const pool = await poolPromise;
+    const studentQuery = pool.request();
+    const studentResult = await studentQuery
+      .input('user_id', sql.Int, userId)
+      .query('SELECT id FROM students WHERE user_id = @user_id');
+
+    if (studentResult.recordset.length === 0) {
+      return res.status(404).json({ message: 'Student record not found' });
+    }
+
+    const studentId = studentResult.recordset[0].id;
 
     // Check if student is already on waiting list for this slot
-    const pool = await poolPromise;
     const existingRequest = pool.request();
     const existingResult = await existingRequest
       .input('student_id', sql.Int, studentId)
@@ -736,10 +809,22 @@ router.post('/waiting-list', authorizeRole(['student']), rateLimit(), async (req
 router.put('/appointments/reschedule', authorizeRole(['student']), async (req, res) => {
   try {
     const { appointmentId, newDateTime, reason } = req.body;
-    const studentId = req.user.id;
+    const userId = req.user.id;
+
+    // Get student record
+    const pool = await poolPromise;
+    const studentQuery = pool.request();
+    const studentResult = await studentQuery
+      .input('user_id', sql.Int, userId)
+      .query('SELECT id FROM students WHERE user_id = @user_id');
+
+    if (studentResult.recordset.length === 0) {
+      return res.status(404).json({ message: 'Student record not found' });
+    }
+
+    const studentId = studentResult.recordset[0].id;
 
     // First, verify the appointment belongs to the student and is in confirmed status
-    const pool = await poolPromise;
     const verifyRequest = pool.request();
     const verifyResult = await verifyRequest
       .input('appointment_id', sql.Int, appointmentId)
@@ -761,22 +846,22 @@ router.put('/appointments/reschedule', authorizeRole(['student']), async (req, r
     const availabilityCheck = pool.request();
     const availabilityResult = await availabilityCheck
       .input('nurse_id', sql.Int, appointment.nurse_id)
-      .input('appointment_date', sql.DateTime2, newDateTime)
+      .input('appointment_date', sql.NVarChar, newDateTime)
       .input('exclude_appointment_id', sql.Int, appointmentId)
       .query(`
         SELECT na.max_patients,
                (SELECT COUNT(*) FROM appointments a
                 WHERE a.nurse_id = na.nurse_id
                   AND CAST(a.appointment_date AS DATE) = CAST(@appointment_date AS DATE)
-                  AND a.appointment_date >= DATEADD(hour, DATEPART(hour, na.start_time), DATEADD(minute, DATEPART(minute, na.start_time), CAST(CAST(@appointment_date AS DATE) AS DATETIME2)))
-                  AND a.appointment_date < DATEADD(hour, DATEPART(hour, na.end_time), DATEADD(minute, DATEPART(minute, na.end_time), CAST(CAST(@appointment_date AS DATE) AS DATETIME2)))
+                  AND a.appointment_date >= DATEADD(hour, DATEPART(hour, CAST(na.start_time AS TIME)), DATEADD(minute, DATEPART(minute, CAST(na.start_time AS TIME)), CAST(CAST(@appointment_date AS DATE) AS DATETIME2)))
+                  AND a.appointment_date < DATEADD(hour, DATEPART(hour, CAST(na.end_time AS TIME)), DATEADD(minute, DATEPART(minute, CAST(na.end_time AS TIME)), CAST(CAST(@appointment_date AS DATE) AS DATETIME2)))
                   AND a.status IN ('pending', 'confirmed')
                   AND a.id != @exclude_appointment_id) as booked_slots
         FROM nurse_availability na
         WHERE na.nurse_id = @nurse_id
           AND CAST(na.availability_date AS DATE) = CAST(@appointment_date AS DATE)
-          AND na.start_time <= CAST(@appointment_date AS TIME)
-          AND na.end_time > CAST(@appointment_date AS TIME)
+          AND CAST(na.start_time AS TIME) <= CAST(CAST(@appointment_date AS DATETIME2) AS TIME)
+          AND CAST(na.end_time AS TIME) > CAST(CAST(@appointment_date AS DATETIME2) AS TIME)
           AND na.is_available = 1
       `);
 
@@ -793,7 +878,7 @@ router.put('/appointments/reschedule', authorizeRole(['student']), async (req, r
     const updateRequest = pool.request();
     await updateRequest
       .input('appointment_id', sql.Int, appointmentId)
-      .input('new_date', sql.DateTime2, newDateTime)
+      .input('new_date', sql.NVarChar, newDateTime)
       .input('reason', sql.NVarChar, reason)
       .query(`
         UPDATE appointments
@@ -841,10 +926,22 @@ router.put('/appointments/reschedule', authorizeRole(['student']), async (req, r
 router.put('/appointments/cancel', authorizeRole(['student']), async (req, res) => {
   try {
     const { appointmentId } = req.body;
-    const studentId = req.user.id;
+    const userId = req.user.id;
+
+    // Get student record
+    const pool = await poolPromise;
+    const studentQuery = pool.request();
+    const studentResult = await studentQuery
+      .input('user_id', sql.Int, userId)
+      .query('SELECT id FROM students WHERE user_id = @user_id');
+
+    if (studentResult.recordset.length === 0) {
+      return res.status(404).json({ message: 'Student record not found' });
+    }
+
+    const studentId = studentResult.recordset[0].id;
 
     // First, verify the appointment belongs to the student and is in confirmed status
-    const pool = await poolPromise;
     const verifyRequest = pool.request();
     const verifyResult = await verifyRequest
       .input('appointment_id', sql.Int, appointmentId)
