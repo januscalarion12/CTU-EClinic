@@ -12,8 +12,8 @@
     <header class="top-header">
         <div class="user-profile" id="userProfile">
             <div class="user-info">
-                <span class="user-name" id="userName">Nurse User</span>
-                <span class="user-role">Nurse</span>
+                <span class="user-name" id="userName">...</span>
+                <span class="user-role" id="userRole">...</span>
             </div>
             <div class="user-avatar">
                 <i class="fas fa-user-nurse"></i>
@@ -209,6 +209,10 @@
         </div>
     </main>
 
+    <footer>
+        <p>&copy; <span id="currentYear"></span> Clinic Management System. All rights reserved.</p>
+    </footer>
+
     <script src="js/common.js"></script>
     <script>
         // Sidebar toggle functionality
@@ -271,46 +275,136 @@
         }
 
         // Load records
-        function loadRecords() {
+        async function loadRecords() {
             const container = document.getElementById('recordsContainer');
-            // This would typically fetch data from your backend
-            container.innerHTML = `
-                <div class="record-card">
-                    <div class="record-header">
-                        <h4>John Doe (STU001)</h4>
-                        <span class="record-date">2024-01-15</span>
-                    </div>
-                    <div class="record-type">Consultation</div>
-                    <div class="record-summary">
-                        <p><strong>Diagnosis:</strong> Common cold symptoms</p>
-                        <p><strong>Treatment:</strong> Rest and hydration recommended</p>
-                    </div>
-                    <div class="record-actions">
-                        <button class="btn-small" onclick="viewRecord(1)">View</button>
-                        <button class="btn-small" onclick="editRecord(1)">Edit</button>
-                    </div>
-                </div>
-                <div class="record-card">
-                    <div class="record-header">
-                        <h4>Jane Smith (STU002)</h4>
-                        <span class="record-date">2024-01-14</span>
-                    </div>
-                    <div class="record-type">Vaccination</div>
-                    <div class="record-summary">
-                        <p><strong>Diagnosis:</strong> Routine vaccination</p>
-                        <p><strong>Treatment:</strong> Flu vaccine administered</p>
-                    </div>
-                    <div class="record-actions">
-                        <button class="btn-small" onclick="viewRecord(2)">View</button>
-                        <button class="btn-small" onclick="editRecord(2)">Edit</button>
-                    </div>
-                </div>
-            `;
-            document.getElementById('totalRecords').textContent = '2';
+            const search = document.getElementById('searchStudent').value;
+            const recordType = document.getElementById('recordTypeFilter').value;
+            const dateRange = document.getElementById('dateFilter').value;
+
+            // Get studentId from URL if present
+            const urlParams = new URLSearchParams(window.location.search);
+            const studentIdFromUrl = urlParams.get('studentId');
+
+            try {
+                let url = '/api/nurse/students'; // We can use the students list to find records or medical-records endpoint
+                // Actually, we want to see records. Let's use the medical-records endpoint if it supports search
+                // For now, let's just implement loading records for a specific student if studentId is provided
+                
+                if (studentIdFromUrl) {
+                    const response = await fetch(`/api/medical-records/student/${studentIdFromUrl}`);
+                    if (response.ok) {
+                        const records = await response.json();
+                        displayRecords(records);
+                        
+                        // Also auto-fill student info if we're adding a new record
+                        fetchStudentInfo(studentIdFromUrl);
+                    }
+                } else {
+                    // Load all students the nurse has access to
+                    const response = await fetch('/api/nurse/students');
+                    if (response.ok) {
+                        const students = await response.json();
+                        // Maybe we should list students first? 
+                        // The current UI expects records. Let's fetch records for all these students.
+                        container.innerHTML = '<p>Please search for a student to view their records.</p>';
+                    }
+                }
+            } catch (error) {
+                console.error('Error loading records:', error);
+                container.innerHTML = '<p>Error loading records</p>';
+            }
         }
 
+        function displayRecords(records) {
+            const container = document.getElementById('recordsContainer');
+            if (records.length === 0) {
+                container.innerHTML = '<p>No records found for this student.</p>';
+                document.getElementById('totalRecords').textContent = '0';
+                return;
+            }
+
+            container.innerHTML = records.map(record => `
+                <div class="record-card">
+                    <div class="record-header">
+                        <h4>${record.student_name || 'Patient'}</h4>
+                        <span class="record-date">${new Date(record.visit_date).toLocaleDateString()}</span>
+                    </div>
+                    <div class="record-type">${record.record_type}</div>
+                    <div class="record-summary">
+                        <p><strong>Diagnosis:</strong> ${record.diagnosis || 'N/A'}</p>
+                        <p><strong>Treatment:</strong> ${record.treatment || 'N/A'}</p>
+                    </div>
+                    <div class="record-actions">
+                        <button class="btn-small" onclick="viewRecordDetails(${record.id})">View</button>
+                    </div>
+                </div>
+            `).join('');
+            document.getElementById('totalRecords').textContent = records.length;
+        }
+
+        async function fetchStudentInfo(studentId) {
+            try {
+                // We need an endpoint to get student info by their internal ID
+                // nurse.js has /students which returns all. Let's see if there is a specific one.
+                const response = await fetch('/api/nurse/students');
+                if (response.ok) {
+                    const students = await response.json();
+                    const student = students.find(s => s.id == studentId);
+                    if (student) {
+                        document.getElementById('studentId').value = student.id;
+                        document.getElementById('studentName').value = student.name;
+                    }
+                }
+            } catch (error) {
+                console.error('Error fetching student info:', error);
+            }
+        }
+
+        // Handle Add Record Form Submission
+        document.getElementById('addRecordForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const formData = new FormData(e.target);
+            const data = {
+                studentId: formData.get('studentId'),
+                recordType: formData.get('recordType'),
+                visitDate: formData.get('visitDate'),
+                diagnosis: formData.get('diagnosis'),
+                treatment: formData.get('treatment'),
+                medications: formData.get('medication'),
+                notes: formData.get('notes'),
+                followUpRequired: formData.get('followUp') === 'yes' ? 1 : 0
+            };
+
+            try {
+                const response = await fetch('/api/medical-records', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(data)
+                });
+
+                if (response.ok) {
+                    alert('Record saved successfully!');
+                    hideRecordForm();
+                    loadRecords();
+                } else {
+                    const err = await response.json();
+                    alert('Error: ' + err.message);
+                }
+            } catch (error) {
+                alert('Error saving record');
+            }
+        });
+
         // Load records on page load
-        loadRecords();
+        document.addEventListener('DOMContentLoaded', function() {
+            loadRecords();
+            
+            // If studentId is in URL, auto-open form
+            const urlParams = new URLSearchParams(window.location.search);
+            if (urlParams.get('studentId')) {
+                showAddRecordForm();
+            }
+        });
     </script>
 </body>
 </html>

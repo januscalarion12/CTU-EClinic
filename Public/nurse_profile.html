@@ -12,8 +12,8 @@
     <header class="top-header">
         <div class="user-profile" id="userProfile">
             <div class="user-info">
-                <span class="user-name" id="userName">Nurse User</span>
-                <span class="user-role">Nurse</span>
+                <span class="user-name" id="userName">...</span>
+                <span class="user-role" id="userRole">...</span>
             </div>
             <div class="user-avatar">
                 <i class="fas fa-user-nurse"></i>
@@ -76,27 +76,27 @@
                         <i class="fas fa-user-circle"></i>
                     </div>
                     <div class="profile-info">
-                        <h3 id="profileName">Nurse Name</h3>
-                        <p id="profileRole">Registered Nurse</p>
-                        <p id="profileEmail">nurse@clinic.edu</p>
+                        <h3 id="profileName">Loading...</h3>
+                        <p id="profileRole">Nurse</p>
+                        <p id="profileEmail">...</p>
                     </div>
                 </div>
                 <div class="dashboard-card">
                     <div class="card-icon"><i class="fas fa-calendar-check"></i></div>
                     <h3>Appointments Today</h3>
-                    <p id="todayAppointments">12</p>
+                    <p id="todayAppointments">0</p>
                     <small>Scheduled appointments</small>
                 </div>
                 <div class="dashboard-card">
                     <div class="card-icon"><i class="fas fa-users"></i></div>
                     <h3>Total Patients</h3>
-                    <p id="totalPatients">245</p>
+                    <p id="totalPatients">0</p>
                     <small>Students served</small>
                 </div>
                 <div class="dashboard-card">
                     <div class="card-icon"><i class="fas fa-award"></i></div>
                     <h3>Experience</h3>
-                    <p id="experienceYears">5</p>
+                    <p id="experienceYears">0</p>
                     <small>Years of service</small>
                 </div>
             </div>
@@ -200,6 +200,10 @@
         </div>
     </main>
 
+    <footer>
+        <p>&copy; <span id="currentYear"></span> Clinic Management System. All rights reserved.</p>
+    </footer>
+
     <script src="js/common.js"></script>
     <script>
         // Sidebar toggle functionality
@@ -294,9 +298,27 @@
                     document.getElementById('department').value = nurseData.department || '';
                     document.getElementById('yearsOfExperience').value = nurseData.years_of_experience || '';
                     document.getElementById('bio').value = nurseData.bio || '';
+                    
+                    // Update stats card with years of experience
+                    document.getElementById('experienceYears').textContent = nurseData.years_of_experience || '0';
                 }
             } catch (error) {
                 console.error('Error loading nurse data:', error);
+            }
+        }
+
+        async function loadDashboardStats() {
+            try {
+                const response = await fetch('/api/nurse/dashboard-stats', {
+                    credentials: 'include'
+                });
+                if (response.ok) {
+                    const stats = await response.json();
+                    document.getElementById('todayAppointments').textContent = stats.todayAppointments || '0';
+                    document.getElementById('totalPatients').textContent = stats.totalStudents || '0';
+                }
+            } catch (error) {
+                console.error('Error loading stats:', error);
             }
         }
 
@@ -345,6 +367,7 @@
 
         // Load profile data on page load
         loadProfileData();
+        loadDashboardStats();
     </script>
 </body>
 </html>

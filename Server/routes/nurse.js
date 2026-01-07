@@ -23,17 +23,19 @@ async function getNurseId(userId) {
 // Get nurse's students with pagination and filters
 router.get('/students', authorizeRole(['nurse']), async (req, res) => {
   try {
-    const nurseId = req.user.id;
+    const userId = req.user.id;
+    const nurseId = await getNurseId(userId);
     const { limit = 20, offset = 0, search, department, schoolYear, schoolLevel } = req.query;
 
     const pool = await poolPromise;
 
     let query = `
-      SELECT s.id, s.student_id, s.name, s.email, s.phone, s.department, s.school_year, s.school_level,
+      SELECT DISTINCT s.id, s.student_id, s.name, s.email, s.phone, s.department, s.school_year, s.school_level,
              s.date_of_birth, s.gender, s.blood_type, s.allergies, s.medical_conditions
       FROM students s
-      INNER JOIN nurse_students ns ON s.id = ns.student_id
-      WHERE ns.nurse_id = @nurse_id AND ns.is_active = 1
+      LEFT JOIN nurse_students ns ON s.id = ns.student_id
+      LEFT JOIN appointments a ON s.id = a.student_id
+      WHERE (ns.nurse_id = @nurse_id AND ns.is_active = 1) OR (a.nurse_id = @nurse_id)
     `;
 
     const request = pool.request().input('nurse_id', sql.Int, nurseId);
@@ -76,7 +78,8 @@ router.get('/students', authorizeRole(['nurse']), async (req, res) => {
 router.post('/students', authorizeRole(['nurse']), async (req, res) => {
   try {
     const { studentId } = req.body;
-    const nurseId = req.user.id;
+    const userId = req.user.id;
+    const nurseId = await getNurseId(userId);
 
     const pool = await poolPromise;
 
@@ -118,7 +121,8 @@ router.post('/students', authorizeRole(['nurse']), async (req, res) => {
 router.put('/students/:studentId', authorizeRole(['nurse']), async (req, res) => {
   try {
     const { studentId } = req.params;
-    const nurseId = req.user.id;
+    const userId = req.user.id;
+    const nurseId = await getNurseId(userId);
     const {
       phone,
       address,
@@ -135,12 +139,16 @@ router.put('/students/:studentId', authorizeRole(['nurse']), async (req, res) =>
 
     const pool = await poolPromise;
 
-    // Verify nurse has access to this student
+    // Verify nurse has access to this student (assigned OR has appointment)
     const accessCheck = pool.request();
     const accessResult = await accessCheck
       .input('nurse_id', sql.Int, nurseId)
       .input('student_id', sql.Int, studentId)
-      .query('SELECT id FROM nurse_students WHERE nurse_id = @nurse_id AND student_id = @student_id AND is_active = 1');
+      .query(`
+        SELECT id FROM nurse_students WHERE nurse_id = @nurse_id AND student_id = @student_id AND is_active = 1
+        UNION
+        SELECT id FROM appointments WHERE nurse_id = @nurse_id AND student_id = @student_id
+      `);
 
     if (accessResult.recordset.length === 0) {
       return res.status(403).json({ message: 'Access denied to this student' });
@@ -189,7 +197,8 @@ router.put('/students/:studentId', authorizeRole(['nurse']), async (req, res) =>
 router.put('/students/:studentId/archive', authorizeRole(['nurse']), async (req, res) => {
   try {
     const { studentId } = req.params;
-    const nurseId = req.user.id;
+    const userId = req.user.id;
+    const nurseId = await getNurseId(userId);
     const { is_active } = req.body;
 
     const pool = await poolPromise;
@@ -222,21 +231,17 @@ router.put('/students/:studentId/archive', authorizeRole(['nurse']), async (req,
 router.post('/students/:id/qr', authorizeRole(['nurse']), async (req, res) => {
   try {
     const studentId = req.params.id;
-    const nurseId = req.user.id;
+    const pool = await poolPromise;
 
-    // Verify nurse has access to this student
-    const [access] = await db.execute(
-      'SELECT id FROM nurse_students WHERE nurse_id = ? AND student_id = ?',
-      [nurseId, studentId]
-    );
-    if (access.length === 0) {
-      return res.status(403).json({ message: 'Access denied' });
-    }
-
+    // QR code generation is allowed for any student now
     const qrData = `student:${studentId}:${Date.now()}`;
     const qrCode = await generateQRCode(qrData);
 
-    await db.execute('UPDATE students SET qr_code = ? WHERE id = ?', [qrCode, studentId]);
+    const updateRequest = pool.request();
+    await updateRequest
+      .input('qr_code', sql.NVarChar, qrCode)
+      .input('id', sql.Int, studentId)
+      .query('UPDATE students SET qr_code = @qr_code WHERE id = @id');
 
     res.json({ qrCode });
   } catch (error) {
@@ -245,19 +250,25 @@ router.post('/students/:id/qr', authorizeRole(['nurse']), async (req, res) => {
   }
 });
 
-// Get nurse's reports
+// Get nurse's reports (reports created by this nurse)
 router.get('/reports', authorizeRole(['nurse']), async (req, res) => {
   try {
-    const nurseId = req.user.id;
-    const [rows] = await db.execute(`
-      SELECT r.*, s.name as student_name
-      FROM reports r
-      JOIN students s ON r.student_id = s.id
-      JOIN nurse_students ns ON s.id = ns.student_id
-      WHERE ns.nurse_id = ?
-      ORDER BY r.created_at DESC
-    `, [nurseId]);
-    res.json(rows);
+    const userId = req.user.id;
+    const nurseId = await getNurseId(userId);
+    const pool = await poolPromise;
+
+    const request = pool.request();
+    const result = await request
+      .input('nurse_id', sql.Int, nurseId)
+      .query(`
+        SELECT r.*, s.name as student_name
+        FROM reports r
+        JOIN students s ON r.student_id = s.id
+        WHERE r.nurse_id = @nurse_id
+        ORDER BY r.created_at DESC
+      `);
+
+    res.json(result.recordset);
   } catch (error) {
     console.error('Error fetching reports:', error);
     res.status(500).json({ message: 'Error fetching reports' });
@@ -267,24 +278,28 @@ router.get('/reports', authorizeRole(['nurse']), async (req, res) => {
 // Create report
 router.post('/reports', authorizeRole(['nurse']), async (req, res) => {
   try {
-    const { studentId, reportType, description } = req.body;
-    const nurseId = req.user.id;
+    const { studentId, reportType, title, description, findings, recommendations, isConfidential } = req.body;
+    const userId = req.user.id;
+    const nurseId = await getNurseId(userId);
+    const pool = await poolPromise;
 
-    // Verify nurse has access to this student
-    const [access] = await db.execute(
-      'SELECT id FROM nurse_students WHERE nurse_id = ? AND student_id = ?',
-      [nurseId, studentId]
-    );
-    if (access.length === 0) {
-      return res.status(403).json({ message: 'Access denied' });
-    }
+    const insertRequest = pool.request();
+    const result = await insertRequest
+      .input('student_id', sql.Int, studentId)
+      .input('nurse_id', sql.Int, nurseId)
+      .input('report_type', sql.NVarChar, reportType)
+      .input('title', sql.NVarChar, title || 'Health Report')
+      .input('description', sql.NVarChar, description || null)
+      .input('findings', sql.NVarChar, findings || null)
+      .input('recommendations', sql.NVarChar, recommendations || null)
+      .input('is_confidential', sql.Bit, isConfidential ? 1 : 0)
+      .query(`
+        INSERT INTO reports (student_id, nurse_id, report_type, title, description, findings, recommendations, is_confidential)
+        VALUES (@student_id, @nurse_id, @report_type, @title, @description, @findings, @recommendations, @is_confidential);
+        SELECT SCOPE_IDENTITY() AS id;
+      `);
 
-    const [result] = await db.execute(
-      'INSERT INTO reports (student_id, nurse_id, report_type, description) VALUES (?, ?, ?, ?)',
-      [studentId, nurseId, reportType, description]
-    );
-
-    res.status(201).json({ message: 'Report created successfully', reportId: result.insertId });
+    res.status(201).json({ message: 'Report created successfully', reportId: result.recordset[0].id });
   } catch (error) {
     console.error('Error creating report:', error);
     res.status(500).json({ message: 'Error creating report' });
@@ -432,6 +447,24 @@ router.post('/availability', authorizeRole(['nurse']), async (req, res) => {
     const userId = req.user.id;
     const { date, startTime, endTime, maxPatients } = req.body;
     const maxPatientsValue = maxPatients || 10; // Default to 10 slots per day
+
+    // Check if the date is a weekend or holiday
+    const dateObj = new Date(date);
+    const dayOfWeek = dateObj.getUTCDay(); // 0 = Sunday, 6 = Saturday
+    const dateStr = dateObj.toISOString().split('T')[0];
+
+    const philippineHolidays = [
+      '2026-01-01', '2026-04-09', '2026-04-18', '2026-04-19', '2026-04-20',
+      '2026-05-01', '2026-06-12', '2026-08-25', '2026-11-30', '2026-12-25', '2026-12-30', '2026-12-31'
+    ];
+
+    if (dayOfWeek === 0 || dayOfWeek === 6) {
+      return res.status(400).json({ message: 'Cannot set availability on weekends.' });
+    }
+
+    if (philippineHolidays.includes(dateStr)) {
+      return res.status(400).json({ message: 'Cannot set availability on holidays.' });
+    }
 
     const nurseId = await getNurseId(userId);
     const pool = await poolPromise;
@@ -766,14 +799,17 @@ router.get('/dashboard-stats', authorizeRole(['nurse']), async (req, res) => {
           AND (mr.follow_up_date IS NULL OR mr.follow_up_date >= GETDATE())
       `);
 
-    // Get total students assigned to this nurse
+    // Get total students (assigned OR had appointment)
     const totalStudentsRequest = pool.request();
     const totalStudentsResult = await totalStudentsRequest
       .input('nurse_id', sql.Int, nurseId)
       .query(`
-        SELECT COUNT(*) as count
-        FROM nurse_students
-        WHERE nurse_id = @nurse_id AND is_active = 1
+        SELECT COUNT(DISTINCT student_id) as count
+        FROM (
+          SELECT student_id FROM nurse_students WHERE nurse_id = @nurse_id AND is_active = 1
+          UNION
+          SELECT student_id FROM appointments WHERE nurse_id = @nurse_id
+        ) combined
       `);
 
     // Get available slots for today
@@ -1039,6 +1075,7 @@ router.post('/scan-appointment-qr', authorizeRole(['nurse']), async (req, res) =
       message: 'Student checked in successfully',
       appointment: {
         id: appointment.id,
+        studentInternalId: appointment.student_id,
         studentName: appointment.student_name,
         studentId: appointment.student_number,
         appointmentDate: appointment.appointment_date,

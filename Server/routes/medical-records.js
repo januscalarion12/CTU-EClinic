@@ -3,25 +3,44 @@ const router = express.Router();
 const { poolPromise, sql } = require('../db');
 const { authorizeRole } = require('../middleware/auth');
 
+// Helper function to get nurse ID from user ID
+async function getNurseId(userId) {
+  const pool = await poolPromise;
+  const nurseRequest = pool.request();
+  const nurseResult = await nurseRequest
+    .input('user_id', sql.Int, userId)
+    .query('SELECT id FROM nurses WHERE user_id = @user_id');
+
+  if (nurseResult.recordset.length === 0) {
+    throw new Error('Nurse profile not found');
+  }
+
+  return nurseResult.recordset[0].id;
+}
+
 // Get medical records for a student
 router.get('/student/:studentId', authorizeRole(['nurse']), async (req, res) => {
   try {
     const { studentId } = req.params;
-    const nurseId = req.user.id;
+    const userId = req.user.id;
+    const nurseId = await getNurseId(userId);
 
-    // Verify nurse has access to this student
-    const accessCheck = await poolPromise;
-    const accessRequest = accessCheck.request();
+    // Verify nurse has access to this student (assigned OR has appointment)
+    const pool = await poolPromise;
+    const accessRequest = pool.request();
     const accessResult = await accessRequest
       .input('nurse_id', sql.Int, nurseId)
       .input('student_id', sql.Int, studentId)
-      .query('SELECT id FROM nurse_students WHERE nurse_id = @nurse_id AND student_id = @student_id AND is_active = 1');
+      .query(`
+        SELECT id FROM nurse_students WHERE nurse_id = @nurse_id AND student_id = @student_id AND is_active = 1
+        UNION
+        SELECT id FROM appointments WHERE nurse_id = @nurse_id AND student_id = @student_id
+      `);
 
     if (accessResult.recordset.length === 0) {
       return res.status(403).json({ message: 'Access denied to this student\'s records' });
     }
 
-    const pool = await poolPromise;
     const request = pool.request();
     const result = await request
       .input('student_id', sql.Int, studentId)
@@ -37,6 +56,9 @@ router.get('/student/:studentId', authorizeRole(['nurse']), async (req, res) => 
     res.json(result.recordset);
   } catch (error) {
     console.error('Error fetching medical records:', error);
+    if (error.message === 'Nurse profile not found') {
+      return res.status(404).json({ message: error.message });
+    }
     res.status(500).json({ message: 'Error fetching medical records' });
   }
 });
@@ -57,21 +79,25 @@ router.post('/', authorizeRole(['nurse']), async (req, res) => {
       followUpRequired,
       followUpDate
     } = req.body;
-    const nurseId = req.user.id;
+    const userId = req.user.id;
+    const nurseId = await getNurseId(userId);
 
-    // Verify nurse has access to this student
-    const accessCheck = await poolPromise;
-    const accessRequest = accessCheck.request();
+    // Verify nurse has access to this student (assigned OR has appointment)
+    const pool = await poolPromise;
+    const accessRequest = pool.request();
     const accessResult = await accessRequest
       .input('nurse_id', sql.Int, nurseId)
       .input('student_id', sql.Int, studentId)
-      .query('SELECT id FROM nurse_students WHERE nurse_id = @nurse_id AND student_id = @student_id AND is_active = 1');
+      .query(`
+        SELECT id FROM nurse_students WHERE nurse_id = @nurse_id AND student_id = @student_id AND is_active = 1
+        UNION
+        SELECT id FROM appointments WHERE nurse_id = @nurse_id AND student_id = @student_id
+      `);
 
     if (accessResult.recordset.length === 0) {
       return res.status(403).json({ message: 'Access denied to this student' });
     }
 
-    const pool = await poolPromise;
     const insertRequest = pool.request();
     const result = await insertRequest
       .input('student_id', sql.Int, studentId)
@@ -125,7 +151,8 @@ router.post('/', authorizeRole(['nurse']), async (req, res) => {
 router.put('/:id', authorizeRole(['nurse']), async (req, res) => {
   try {
     const recordId = req.params.id;
-    const nurseId = req.user.id;
+    const userId = req.user.id;
+    const nurseId = await getNurseId(userId);
     const {
       recordType,
       symptoms,
@@ -181,6 +208,9 @@ router.put('/:id', authorizeRole(['nurse']), async (req, res) => {
     res.json({ message: 'Medical record updated successfully' });
   } catch (error) {
     console.error('Error updating medical record:', error);
+    if (error.message === 'Nurse profile not found') {
+      return res.status(404).json({ message: error.message });
+    }
     res.status(500).json({ message: 'Error updating medical record' });
   }
 });
@@ -189,7 +219,8 @@ router.put('/:id', authorizeRole(['nurse']), async (req, res) => {
 router.delete('/:id', authorizeRole(['nurse']), async (req, res) => {
   try {
     const recordId = req.params.id;
-    const nurseId = req.user.id;
+    const userId = req.user.id;
+    const nurseId = await getNurseId(userId);
 
     const pool = await poolPromise;
 
@@ -212,6 +243,9 @@ router.delete('/:id', authorizeRole(['nurse']), async (req, res) => {
     res.json({ message: 'Medical record deleted successfully' });
   } catch (error) {
     console.error('Error deleting medical record:', error);
+    if (error.message === 'Nurse profile not found') {
+      return res.status(404).json({ message: error.message });
+    }
     res.status(500).json({ message: 'Error deleting medical record' });
   }
 });
@@ -220,7 +254,8 @@ router.delete('/:id', authorizeRole(['nurse']), async (req, res) => {
 router.get('/:id', authorizeRole(['nurse']), async (req, res) => {
   try {
     const recordId = req.params.id;
-    const nurseId = req.user.id;
+    const userId = req.user.id;
+    const nurseId = await getNurseId(userId);
 
     const pool = await poolPromise;
     const request = pool.request();
@@ -243,6 +278,9 @@ router.get('/:id', authorizeRole(['nurse']), async (req, res) => {
     res.json(result.recordset[0]);
   } catch (error) {
     console.error('Error fetching medical record:', error);
+    if (error.message === 'Nurse profile not found') {
+      return res.status(404).json({ message: error.message });
+    }
     res.status(500).json({ message: 'Error fetching medical record' });
   }
 });

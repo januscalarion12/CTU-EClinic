@@ -44,12 +44,14 @@ const generateQRCodeBuffer = async (data) => {
 const validateQRCode = (qrData) => {
   try {
     const parts = qrData.split(':');
-    if (parts.length !== 3) {
+    if (parts.length < 3) {
       return false;
     }
 
-    const [type, id, timestamp] = parts;
-    if (type !== 'student') {
+    const type = parts[0];
+    const timestamp = parts[parts.length - 1];
+
+    if (type !== 'student' && type !== 'appointment') {
       return false;
     }
 

@@ -12,8 +12,8 @@
     <header class="top-header">
         <div class="user-profile" id="userProfile">
             <div class="user-info">
-                <span class="user-name" id="userName">Student User</span>
-                <span class="user-role">Student</span>
+                <span class="user-name" id="userName">...</span>
+                <span class="user-role" id="userRole">...</span>
             </div>
             <div class="user-avatar">
                 <i class="fas fa-graduation-cap"></i>
@@ -74,7 +74,7 @@
     </main>
 
     <footer>
-        <p>&copy; 2024 Clinic Management System. All rights reserved.</p>
+        <p>&copy; <span id="currentYear"></span> Clinic Management System. All rights reserved.</p>
     </footer>
 
     <script src="js/common.js"></script>
@@ -103,6 +103,13 @@
         navLinks.forEach(link => {
             if (link.getAttribute('href') === currentPage) {
                 link.classList.add('active');
+            }
+        });
+
+        // Load records on page load
+        document.addEventListener('DOMContentLoaded', function() {
+            if (typeof loadRecords === 'function') {
+                loadRecords();
             }
         });
     </script>

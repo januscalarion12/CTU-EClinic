@@ -46,31 +46,31 @@
                     <div class="stat-icon"><i class="fas fa-graduation-cap"></i></div>
                     <div class="stat-content">
                         <h3>Total Students</h3>
-                        <p id="totalStudents">245</p>
-                        <small class="stat-change positive">+8 this month</small>
+                        <p id="totalStudents">...</p>
+                        <small class="stat-change positive">Campus-wide</small>
                     </div>
                 </div>
                 <div class="stat-card">
                     <div class="stat-icon"><i class="fas fa-user-nurse"></i></div>
                     <div class="stat-content">
                         <h3>Active Nurses</h3>
-                        <p id="activeNurses">12</p>
-                        <small class="stat-change neutral">No change</small>
+                        <p id="activeNurses">...</p>
+                        <small class="stat-change neutral">On duty</small>
                     </div>
                 </div>
                 <div class="stat-card">
                     <div class="stat-icon"><i class="fas fa-user-shield"></i></div>
                     <div class="stat-content">
                         <h3>Administrators</h3>
-                        <p id="totalAdmins">3</p>
-                        <small class="stat-change neutral">No change</small>
+                        <p id="totalAdmins">...</p>
+                        <small class="stat-change neutral">System-wide</small>
                     </div>
                 </div>
                 <div class="stat-card">
                     <div class="stat-icon"><i class="fas fa-user-clock"></i></div>
                     <div class="stat-content">
                         <h3>Pending Approvals</h3>
-                        <p id="pendingUsers">5</p>
+                        <p id="pendingUsers">...</p>
                         <small class="stat-change warning">Requires attention</small>
                     </div>
                 </div>
@@ -793,9 +793,8 @@
                     document.getElementById('activeNurses').textContent = nurseStat.count;
                     document.getElementById('totalAdmins').textContent = adminStat.count;
 
-                    // For pending users, count users with unconfirmed emails
-                    // This could be improved by adding a specific endpoint
-                    document.getElementById('pendingUsers').textContent = '0'; // Placeholder
+                    // Update pending users count from the API
+                    document.getElementById('pendingUsers').textContent = result.pendingUsers || 0;
                 } else {
                     console.error('Failed to load statistics:', result.message);
                 }

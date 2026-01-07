@@ -8,6 +8,37 @@
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
 </head>
 <body>
+    <!-- Top Header -->
+    <header class="top-header">
+        <div class="user-profile" id="userProfile">
+            <div class="user-info">
+                <span class="user-name" id="userName">...</span>
+                <span class="user-role" id="userRole">...</span>
+            </div>
+            <div class="user-avatar">
+                <i class="fas fa-user-nurse"></i>
+            </div>
+            <button class="dropdown-toggle" id="dropdownToggle">
+                <i class="fas fa-chevron-down"></i>
+            </button>
+            <div class="profile-dropdown" id="profileDropdown">
+                <a href="nurse_profile.html" class="dropdown-item">
+                    <i class="fas fa-user"></i> Profile
+                </a>
+                <a href="nurse_availability.html" class="dropdown-item">
+                    <i class="fas fa-clock"></i> Availability
+                </a>
+                <a href="#" class="dropdown-item" id="logout">
+                    <i class="fas fa-sign-out-alt"></i> Logout
+                </a>
+            </div>
+        </div>
+        <!-- Sidebar Toggle Button -->
+        <button class="sidebar-toggle" id="sidebarToggle">
+            <i class="fas fa-bars"></i>
+        </button>
+    </header>
+
     <!-- Sidebar Navigation -->
     <nav class="sidebar" id="sidebar">
         <div class="sidebar-header">
@@ -83,6 +114,10 @@
             </div>
         </div>
     </main>
+
+    <footer>
+        <p>&copy; <span id="currentYear"></span> Clinic Management System. All rights reserved.</p>
+    </footer>
 
     <script src="js/common.js"></script>
     <script>

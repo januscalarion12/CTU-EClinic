@@ -10,7 +10,15 @@ document.addEventListener('DOMContentLoaded', function() {
     initializeNavigation();
     initializeForms();
     initializeUserProfileDropdown();
+    updateFooterYear();
 });
+
+function updateFooterYear() {
+    const yearElement = document.getElementById('currentYear');
+    if (yearElement) {
+        yearElement.textContent = new Date().getFullYear();
+    }
+}
 
 // Authentication functions
 function initializeAuth() {
@@ -155,7 +163,14 @@ async function handleLogin(e) {
                     window.location.href = 'index.html';
             }
         } else {
-            showError(result.message || 'Login failed');
+            if (result.redirectTo) {
+                showError(result.message || 'Please verify your email.');
+                setTimeout(() => {
+                    window.location.href = `${result.redirectTo}?email=${encodeURIComponent(result.email || '')}`;
+                }, 2000);
+            } else {
+                showError(result.message || 'Login failed');
+            }
         }
     } catch (error) {
         showError('Network error. Please try again.');

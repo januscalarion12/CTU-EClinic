@@ -12,8 +12,8 @@
     <header class="top-header">
         <div class="user-profile" id="userProfile">
             <div class="user-info">
-                <span class="user-name" id="userName">Nurse User</span>
-                <span class="user-role">Nurse</span>
+                <span class="user-name" id="userName">...</span>
+                <span class="user-role" id="userRole">...</span>
             </div>
             <div class="user-avatar">
                 <i class="fas fa-user-nurse"></i>
@@ -118,10 +118,12 @@
                     </div>
                 </div>
             </div>
-
-
         </div>
     </main>
+
+    <footer>
+        <p>&copy; <span id="currentYear"></span> Clinic Management System. All rights reserved.</p>
+    </footer>
 
     <script src="js/common.js"></script>
     <script>
@@ -164,16 +166,16 @@
                     const stats = await response.json();
 
                     // Update statistics cards
-                    document.getElementById('todayAppointments').textContent = stats.todayAppointments;
-                    document.getElementById('weeklyAppointments').textContent = stats.weeklyAppointments;
-                    document.getElementById('avgDailyAppointments').textContent = stats.avgDailyAppointments;
-                    document.getElementById('pendingRecords').textContent = stats.pendingRecords;
-                    document.getElementById('availableSlots').textContent = stats.availableSlots;
+                    document.getElementById('todayAppointments').textContent = stats.todayAppointments || 0;
+                    document.getElementById('weeklyAppointments').textContent = stats.weeklyAppointments || 0;
+                    document.getElementById('avgDailyAppointments').textContent = stats.avgDailyAppointments || 0;
+                    document.getElementById('pendingRecords').textContent = stats.pendingRecords || 0;
+                    document.getElementById('availableSlots').textContent = stats.availableSlots || 0;
 
                     // Update monthly trend with appropriate styling
                     const trendElement = document.getElementById('monthlyTrend');
                     const trendIndicator = document.getElementById('trendIndicator');
-                    const trendValue = stats.monthlyTrend;
+                    const trendValue = stats.monthlyTrend || 0;
 
                     trendElement.textContent = trendValue + '%';
                     trendIndicator.className = 'stat-change';
@@ -187,25 +189,10 @@
                     }
                 } else {
                     console.error('Failed to load dashboard stats');
-                    // Fallback to placeholder data
-                    setPlaceholderStats();
                 }
             } catch (error) {
                 console.error('Error loading dashboard stats:', error);
-                // Fallback to placeholder data
-                setPlaceholderStats();
             }
-        }
-
-        // Fallback placeholder data
-        function setPlaceholderStats() {
-            document.getElementById('todayAppointments').textContent = '12';
-            document.getElementById('weeklyAppointments').textContent = '45';
-            document.getElementById('avgDailyAppointments').textContent = '2.1';
-            document.getElementById('pendingRecords').textContent = '5';
-            document.getElementById('availableSlots').textContent = '8';
-            document.getElementById('monthlyTrend').textContent = '+15%';
-            document.getElementById('trendIndicator').className = 'stat-change positive';
         }
 
         // Load stats on page load

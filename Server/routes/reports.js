@@ -210,9 +210,12 @@ router.get('/students', authorizeRole(['nurse', 'admin']), async (req, res) => {
     const request = pool.request();
 
     if (userRole === 'nurse') {
-      // Nurses can only see students assigned to them
-      query += ' JOIN nurse_students ns ON s.id = ns.student_id ';
-      conditions.push('ns.nurse_id = (SELECT id FROM nurses WHERE user_id = @user_id) AND ns.is_active = 1');
+      // Nurses can see students who have an appointment or medical record with them
+      conditions.push(`(
+        EXISTS (SELECT 1 FROM appointments a2 WHERE a2.student_id = s.id AND a2.nurse_id = (SELECT id FROM nurses WHERE user_id = @user_id))
+        OR EXISTS (SELECT 1 FROM medical_records mr2 WHERE mr2.student_id = s.id AND mr2.nurse_id = (SELECT id FROM nurses WHERE user_id = @user_id))
+        OR EXISTS (SELECT 1 FROM nurse_students ns WHERE ns.student_id = s.id AND ns.nurse_id = (SELECT id FROM nurses WHERE user_id = @user_id) AND ns.is_active = 1)
+      )`);
       request.input('user_id', sql.Int, userId);
     }
 
@@ -341,7 +344,13 @@ router.get('/statistics', authorizeRole(['nurse', 'admin']), async (req, res) =>
     let studentsQuery = 'SELECT COUNT(*) as total FROM students s';
 
     if (userRole === 'nurse') {
-      studentsQuery += ' JOIN nurse_students ns ON s.id = ns.student_id WHERE ns.nurse_id = (SELECT id FROM nurses WHERE user_id = @user_id) AND ns.is_active = 1';
+      studentsQuery += ` WHERE EXISTS (
+        SELECT 1 FROM appointments a2 WHERE a2.student_id = s.id AND a2.nurse_id = (SELECT id FROM nurses WHERE user_id = @user_id)
+        UNION
+        SELECT 1 FROM medical_records mr2 WHERE mr2.student_id = s.id AND mr2.nurse_id = (SELECT id FROM nurses WHERE user_id = @user_id)
+        UNION
+        SELECT 1 FROM nurse_students ns WHERE ns.student_id = s.id AND ns.nurse_id = (SELECT id FROM nurses WHERE user_id = @user_id) AND ns.is_active = 1
+      )`;
     }
 
     const studentsResult = await request.query(studentsQuery);

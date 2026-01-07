@@ -12,8 +12,8 @@
     <header class="top-header">
         <div class="user-profile" id="userProfile">
             <div class="user-info">
-                <span class="user-name" id="userName">Nurse User</span>
-                <span class="user-role">Nurse</span>
+                <span class="user-name" id="userName">...</span>
+                <span class="user-role" id="userRole">...</span>
             </div>
             <div class="user-avatar">
                 <i class="fas fa-user-nurse"></i>
@@ -75,28 +75,28 @@
                     <div class="stat-icon"><i class="fas fa-calendar-week"></i></div>
                     <div class="stat-content">
                         <h3>This Week</h3>
-                        <p id="weeklyAppointments">48</p>
+                        <p id="weeklyAppointments">0</p>
                     </div>
                 </div>
                 <div class="stat-card">
                     <div class="stat-icon"><i class="fas fa-users"></i></div>
                     <div class="stat-content">
-                        <h3>Active Patients</h3>
-                        <p id="activePatients">156</p>
+                        <h3>Total Students</h3>
+                        <p id="activePatients">0</p>
                     </div>
                 </div>
                 <div class="stat-card">
                     <div class="stat-icon"><i class="fas fa-clock"></i></div>
                     <div class="stat-content">
                         <h3>Avg. Wait Time</h3>
-                        <p id="avgWaitTime">12 min</p>
+                        <p id="avgWaitTime">...</p>
                     </div>
                 </div>
                 <div class="stat-card">
                     <div class="stat-icon"><i class="fas fa-check-circle"></i></div>
                     <div class="stat-content">
-                        <h3>Completion Rate</h3>
-                        <p id="completionRate">94%</p>
+                        <h3>Monthly Trend</h3>
+                        <p id="completionRate">0%</p>
                     </div>
                 </div>
             </div>
@@ -225,6 +225,10 @@
         </div>
     </main>
 
+    <footer>
+        <p>&copy; <span id="currentYear"></span> Clinic Management System. All rights reserved.</p>
+    </footer>
+
     <script src="js/common.js"></script>
     <script>
         // Sidebar toggle functionality
@@ -253,6 +257,24 @@
                 link.classList.add('active');
             }
         });
+
+        async function loadDashboardStats() {
+            try {
+                const response = await fetch('/api/nurse/dashboard-stats', {
+                    credentials: 'include'
+                });
+                if (response.ok) {
+                    const stats = await response.json();
+                    document.getElementById('weeklyAppointments').textContent = stats.weeklyAppointments || '0';
+                    document.getElementById('activePatients').textContent = stats.totalStudents || '0';
+                    document.getElementById('completionRate').textContent = (stats.monthlyTrend || 0) + '%';
+                }
+            } catch (error) {
+                console.error('Error loading stats:', error);
+            }
+        }
+
+        document.addEventListener('DOMContentLoaded', loadDashboardStats);
 
         // Date range toggle
         document.getElementById('dateRange').addEventListener('change', function() {
@@ -315,15 +337,96 @@
         }
 
         // Utility functions
-        function showReport(title, content) {
-            document.getElementById('reportTitle').textContent = title;
-            document.getElementById('reportContent').innerHTML = `<p>${content}</p>`;
+        // Generate Custom Report
+        document.getElementById('customReportForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const formData = new FormData(e.target);
+            const reportType = formData.get('reportType');
+            const dateRange = formData.get('dateRange');
+            let startDate = formData.get('startDate');
+            let endDate = formData.get('endDate');
+
+            if (dateRange !== 'custom') {
+                const now = new Date();
+                endDate = now.toISOString().split('T')[0];
+                if (dateRange === 'today') startDate = endDate;
+                else if (dateRange === 'week') startDate = new Date(now.setDate(now.getDate() - 7)).toISOString().split('T')[0];
+                else if (dateRange === 'month') startDate = new Date(now.setMonth(now.getMonth() - 1)).toISOString().split('T')[0];
+                else if (dateRange === 'year') startDate = new Date(now.setFullYear(now.getFullYear() - 1)).toISOString().split('T')[0];
+            }
+
+            try {
+                let endpoint = reportType === 'appointments' ? '/api/reports/appointments' : '/api/reports/medical-records';
+                const response = await fetch(`${endpoint}?startDate=${startDate}&endDate=${endDate}`);
+                if (response.ok) {
+                    const result = await response.json();
+                    displayReportResults(result);
+                } else {
+                    alert('Error generating report');
+                }
+            } catch (error) {
+                console.error('Error:', error);
+            }
+        });
+
+        function displayReportResults(result) {
+            const container = document.getElementById('reportContent');
+            const data = result.data;
+            
+            if (!data || data.length === 0) {
+                container.innerHTML = '<p>No data found for the selected criteria.</p>';
+            } else {
+                let html = '<table class="report-table"><thead><tr>';
+                const keys = Object.keys(data[0]);
+                keys.forEach(key => html += `<th>${key.replace(/_/g, ' ').toUpperCase()}</th>`);
+                html += '</tr></thead><tbody>';
+                
+                data.forEach(row => {
+                    html += '<tr>';
+                    keys.forEach(key => {
+                        let val = row[key];
+                        if (key.includes('date') || key.includes('_at')) val = new Date(val).toLocaleDateString();
+                        html += `<td>${val || ''}</td>`;
+                    });
+                    html += '</tr>';
+                });
+                
+                html += '</tbody></table>';
+                container.innerHTML = html;
+                
+                // Add Download CSV button
+                const downloadBtn = document.createElement('button');
+                downloadBtn.className = 'btn-primary';
+                downloadBtn.innerHTML = '<i class="fas fa-file-csv"></i> Download CSV';
+                downloadBtn.onclick = () => downloadCSV(data, result.reportType);
+                document.querySelector('.report-header .report-actions').prepend(downloadBtn);
+            }
+            
             document.getElementById('reportOutput').style.display = 'block';
-            document.getElementById('reportOutput').scrollIntoView({ behavior: 'smooth' });
         }
 
-        function closeReport() {
-            document.getElementById('reportOutput').style.display = 'none';
+        function downloadCSV(data, title) {
+            const csvRows = [];
+            const headers = Object.keys(data[0]);
+            csvRows.push(headers.join(','));
+
+            for (const row of data) {
+                const values = headers.map(header => {
+                    const escaped = ('' + row[header]).replace(/"/g, '\\"');
+                    return `"${escaped}"`;
+                });
+                csvRows.push(values.join(','));
+            }
+
+            const blob = new Blob([csvRows.join('\n')], { type: 'text/csv' });
+            const url = window.URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.setAttribute('hidden', '');
+            a.setAttribute('href', url);
+            a.setAttribute('download', `${title.replace(/\s+/g, '_')}_${new Date().toISOString().split('T')[0]}.csv`);
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
         }
 
         function printReport() {
@@ -343,17 +446,6 @@
             document.getElementById('customDateRange').style.display = 'none';
         }
 
-        // Load initial stats
-        function loadReportStats() {
-            // This would typically fetch data from your backend
-            document.getElementById('weeklyAppointments').textContent = '48';
-            document.getElementById('activePatients').textContent = '156';
-            document.getElementById('avgWaitTime').textContent = '12 min';
-            document.getElementById('completionRate').textContent = '94%';
-        }
-
-        // Load stats on page load
-        loadReportStats();
     </script>
 </body>
 </html>

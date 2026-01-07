@@ -12,8 +12,8 @@
     <header class="top-header">
         <div class="user-profile" id="userProfile">
             <div class="user-info">
-                <span class="user-name" id="userName">Admin User</span>
-                <span class="user-role">Administrator</span>
+                <span class="user-name" id="userName">...</span>
+                <span class="user-role" id="userRole">...</span>
             </div>
             <div class="user-avatar">
                 <i class="fas fa-user"></i>
@@ -73,32 +73,32 @@
                     <div class="stat-icon"><i class="fas fa-users"></i></div>
                     <div class="stat-content">
                         <h3>Total Users</h3>
-                        <p id="totalUsers">387</p>
-                        <small class="stat-change positive">+12 this month</small>
+                        <p id="totalUsers">0</p>
+                        <small class="stat-change">Registered users</small>
                     </div>
                 </div>
                 <div class="stat-card">
                     <div class="stat-icon"><i class="fas fa-user-nurse"></i></div>
                     <div class="stat-content">
                         <h3>Active Nurses</h3>
-                        <p id="totalNurses">12</p>
-                        <small class="stat-change neutral">No change</small>
+                        <p id="totalNurses">0</p>
+                        <small class="stat-change">On duty</small>
                     </div>
                 </div>
                 <div class="stat-card">
                     <div class="stat-icon"><i class="fas fa-graduation-cap"></i></div>
                     <div class="stat-content">
                         <h3>Registered Students</h3>
-                        <p id="totalStudents">245</p>
-                        <small class="stat-change positive">+8 this week</small>
+                        <p id="totalStudents">0</p>
+                        <small class="stat-change">Campus-wide</small>
                     </div>
                 </div>
                 <div class="stat-card">
                     <div class="stat-icon"><i class="fas fa-calendar-check"></i></div>
                     <div class="stat-content">
                         <h3>Monthly Appointments</h3>
-                        <p id="totalAppointments">1247</p>
-                        <small class="stat-change positive">+15% vs last month</small>
+                        <p id="totalAppointments">0</p>
+                        <small class="stat-change">Current month</small>
                     </div>
                 </div>
             </div>
@@ -111,19 +111,19 @@
                     <div class="health-indicators">
                         <div class="health-item">
                             <span class="health-label">Database</span>
-                            <span class="health-status online">● Online</span>
+                            <span class="health-status">● <span class="text-success">Connected</span></span>
                         </div>
                         <div class="health-item">
                             <span class="health-label">Server Load</span>
-                            <span class="health-status warning">● 78%</span>
+                            <span class="health-status">● <span class="text-success">Normal</span></span>
                         </div>
                         <div class="health-item">
                             <span class="health-label">Storage</span>
-                            <span class="health-status online">● 65% Free</span>
+                            <span class="health-status">● <span class="text-success">Available</span></span>
                         </div>
                         <div class="health-item">
                             <span class="health-label">Backup</span>
-                            <span class="health-status online">● Current</span>
+                            <span class="health-status">● <span class="text-success">Current</span></span>
                         </div>
                     </div>
                     <button class="btn-secondary" onclick="viewSystemHealth()">View Details</button>
@@ -132,23 +132,8 @@
                 <div class="dashboard-card recent-activity">
                     <div class="card-icon"><i class="fas fa-history"></i></div>
                     <h3>Recent Activity</h3>
-                    <div class="activity-list">
-                        <div class="activity-item">
-                            <span class="activity-time">2 min ago</span>
-                            <span class="activity-desc">New student registered</span>
-                        </div>
-                        <div class="activity-item">
-                            <span class="activity-time">15 min ago</span>
-                            <span class="activity-desc">Appointment completed</span>
-                        </div>
-                        <div class="activity-item">
-                            <span class="activity-time">1 hour ago</span>
-                            <span class="activity-desc">System backup completed</span>
-                        </div>
-                        <div class="activity-item">
-                            <span class="activity-time">2 hours ago</span>
-                            <span class="activity-desc">New nurse account created</span>
-                        </div>
+                    <div class="activity-list" id="recentActivityList">
+                        <p class="text-muted">Loading recent activity...</p>
                     </div>
                     <button class="btn-secondary" onclick="viewAllActivity()">View All</button>
                 </div>
@@ -215,6 +200,10 @@
         </div>
     </main>
 
+    <footer>
+        <p>&copy; <span id="currentYear"></span> Clinic Management System. All rights reserved.</p>
+    </footer>
+
     <script src="js/common.js"></script>
     <script>
         // Sidebar toggle functionality
@@ -245,12 +234,29 @@
         });
 
         // Load dashboard statistics
-        function loadDashboardStats() {
-            // This would typically fetch data from your backend
-            document.getElementById('totalUsers').textContent = '387';
-            document.getElementById('totalNurses').textContent = '12';
-            document.getElementById('totalStudents').textContent = '245';
-            document.getElementById('totalAppointments').textContent = '1,247';
+        async function loadDashboardStats() {
+            try {
+                const response = await fetch('/api/admin/dashboard-stats', {
+                    method: 'GET',
+                    credentials: 'include'
+                });
+
+                if (response.ok) {
+                    const stats = await response.json();
+                    document.getElementById('totalUsers').textContent = stats.totalUsers || 0;
+                    document.getElementById('totalNurses').textContent = stats.totalNurses || 0;
+                    document.getElementById('totalStudents').textContent = stats.totalStudents || 0;
+                    document.getElementById('totalAppointments').textContent = stats.totalAppointments || 0;
+                    
+                    // Clear loading message for activity if we had a real endpoint
+                    const activityList = document.getElementById('recentActivityList');
+                    if (activityList) {
+                        activityList.innerHTML = '<p class="text-muted">No recent activity</p>';
+                    }
+                }
+            } catch (error) {
+                console.error('Error loading admin stats:', error);
+            }
         }
 
         // Administrative functions

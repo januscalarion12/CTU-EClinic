@@ -339,6 +339,24 @@ router.post('/bookings', authorizeRole(['student']), rateLimit(), upload.array('
 
     console.log('Booking attempt:', { nurseId, appointmentDate, studentId });
 
+    const bookingDate = new Date(appointmentDate);
+    const dayOfWeek = bookingDate.getUTCDay(); // 0 = Sunday, 6 = Saturday
+    const dateStr = bookingDate.toISOString().split('T')[0];
+
+    // Define Philippine holidays (keep consistent with available-dates)
+    const philippineHolidays = [
+      '2026-01-01', '2026-04-09', '2026-04-18', '2026-04-19', '2026-04-20',
+      '2026-05-01', '2026-06-12', '2026-08-25', '2026-11-30', '2026-12-25', '2026-12-30', '2026-12-31'
+    ];
+
+    if (dayOfWeek === 0 || dayOfWeek === 6) {
+      return res.status(400).json({ message: 'Appointments cannot be booked on weekends.' });
+    }
+
+    if (philippineHolidays.includes(dateStr)) {
+      return res.status(400).json({ message: 'Appointments cannot be booked on holidays.' });
+    }
+
     // Check if the time slot is still available
     const availabilityCheck = pool.request();
     const availabilityResult = await availabilityCheck
@@ -512,32 +530,16 @@ router.get('/reports', authorizeRole(['student']), async (req, res) => {
   }
 });
 
-// Get available nurses (only assigned nurses)
+// Get available nurses (all active nurses)
 router.get('/nurses', authorizeRole(['student']), async (req, res) => {
   try {
-    const userId = req.user.id;
-
-    // Get student record
     const pool = await poolPromise;
-    const studentQuery = pool.request();
-    const studentResult = await studentQuery
-      .input('user_id', sql.Int, userId)
-      .query('SELECT id FROM students WHERE user_id = @user_id');
-
-    if (studentResult.recordset.length === 0) {
-      return res.status(404).json({ message: 'Student record not found' });
-    }
-
-    const studentId = studentResult.recordset[0].id;
-
     const request = pool.request();
     const result = await request
-      .input('student_id', sql.Int, studentId)
       .query(`
-        SELECT n.id, n.name, n.specialization, n.license_number, n.phone, n.department, n.years_of_experience
-        FROM nurses n
-        INNER JOIN nurse_students ns ON n.id = ns.nurse_id
-        WHERE ns.student_id = @student_id AND ns.is_active = 1
+        SELECT id, name, specialization, license_number, phone, department, years_of_experience
+        FROM nurses
+        WHERE is_active = 1
       `);
 
     res.json(result.recordset);
@@ -843,6 +845,24 @@ router.put('/appointments/reschedule', authorizeRole(['student']), async (req, r
     const appointment = verifyResult.recordset[0];
 
     // Check if the new time slot is available
+    const bookingDate = new Date(newDateTime);
+    const dayOfWeek = bookingDate.getUTCDay(); // 0 = Sunday, 6 = Saturday
+    const dateStr = bookingDate.toISOString().split('T')[0];
+
+    // Define Philippine holidays
+    const philippineHolidays = [
+      '2026-01-01', '2026-04-09', '2026-04-18', '2026-04-19', '2026-04-20',
+      '2026-05-01', '2026-06-12', '2026-08-25', '2026-11-30', '2026-12-25', '2026-12-30', '2026-12-31'
+    ];
+
+    if (dayOfWeek === 0 || dayOfWeek === 6) {
+      return res.status(400).json({ message: 'Appointments cannot be rescheduled to weekends.' });
+    }
+
+    if (philippineHolidays.includes(dateStr)) {
+      return res.status(400).json({ message: 'Appointments cannot be rescheduled to holidays.' });
+    }
+
     const availabilityCheck = pool.request();
     const availabilityResult = await availabilityCheck
       .input('nurse_id', sql.Int, appointment.nurse_id)

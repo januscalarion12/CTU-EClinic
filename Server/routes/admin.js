@@ -4,6 +4,41 @@ const { poolPromise, sql } = require('../db');
 const { authorizeRole } = require('../middleware/auth');
 const bcrypt = require('bcryptjs');
 
+// Get dashboard statistics
+router.get('/dashboard-stats', authorizeRole(['admin']), async (req, res) => {
+  try {
+    const pool = await poolPromise;
+
+    // Get total users count
+    const totalUsersResult = await pool.request().query('SELECT COUNT(*) as total FROM users');
+    
+    // Get total nurses count
+    const totalNursesResult = await pool.request().query("SELECT COUNT(*) as total FROM users WHERE role = 'nurse'");
+    
+    // Get total students count
+    const totalStudentsResult = await pool.request().query("SELECT COUNT(*) as total FROM users WHERE role = 'student'");
+    
+    // Get total appointments count (current month)
+    const startOfMonth = new Date();
+    startOfMonth.setDate(1);
+    startOfMonth.setHours(0, 0, 0, 0);
+    
+    const totalAppointmentsResult = await pool.request()
+      .input('startOfMonth', sql.DateTime, startOfMonth)
+      .query('SELECT COUNT(*) as total FROM appointments WHERE created_at >= @startOfMonth');
+
+    res.json({
+      totalUsers: totalUsersResult.recordset[0].total,
+      totalNurses: totalNursesResult.recordset[0].total,
+      totalStudents: totalStudentsResult.recordset[0].total,
+      totalAppointments: totalAppointmentsResult.recordset[0].total
+    });
+  } catch (error) {
+    console.error('Error fetching dashboard statistics:', error);
+    res.status(500).json({ message: 'Error fetching dashboard statistics' });
+  }
+});
+
 // Get all users
 router.get('/users', authorizeRole(['admin']), async (req, res) => {
   try {
@@ -280,6 +315,14 @@ router.get('/statistics', authorizeRole(['admin']), async (req, res) => {
       GROUP BY role
     `);
 
+    // Get pending users count (unconfirmed emails)
+    const pendingUsersRequest = pool.request();
+    const pendingUsersResult = await pendingUsersRequest.query(`
+      SELECT COUNT(*) as count
+      FROM users
+      WHERE is_email_confirmed = 0
+    `);
+
     // Get appointment statistics
     const appointmentStatsRequest = pool.request();
     const appointmentStats = await appointmentStatsRequest.query(`
@@ -307,6 +350,7 @@ router.get('/statistics', authorizeRole(['admin']), async (req, res) => {
 
     res.json({
       userStats: userStats.recordset,
+      pendingUsers: pendingUsersResult.recordset[0].count,
       appointmentStats: appointmentStats.recordset,
       recentActivity: recentActivity.recordset[0]
     });

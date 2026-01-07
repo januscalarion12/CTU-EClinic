@@ -169,6 +169,15 @@ router.post('/login', async (req, res) => {
     const user = result.recordset[0];
     console.log('Login attempt for user:', { email: user.email, id: user.id, is_email_confirmed: user.is_email_confirmed });
 
+    // Check if email is confirmed
+    if (user.is_email_confirmed === 0 || user.is_email_confirmed === false) {
+      return res.status(401).json({ 
+        message: 'Please confirm your email before logging in.',
+        redirectTo: '/verify-email.html',
+        email: user.email
+      });
+    }
+
     const validPassword = await bcrypt.compare(password, user.password_hash);
     if (!validPassword) {
       // Log failed login attempt - invalid password (optional)

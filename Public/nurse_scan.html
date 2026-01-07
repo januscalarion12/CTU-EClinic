@@ -12,8 +12,8 @@
     <header class="top-header">
         <div class="user-profile" id="userProfile">
             <div class="user-info">
-                <span class="user-name" id="userName">Nurse User</span>
-                <span class="user-role">Nurse</span>
+                <span class="user-name" id="userName">...</span>
+                <span class="user-role" id="userRole">...</span>
             </div>
             <div class="user-avatar">
                 <i class="fas fa-user-nurse"></i>
@@ -159,6 +159,10 @@
             </div>
         </div>
     </main>
+
+    <footer>
+        <p>&copy; <span id="currentYear"></span> Clinic Management System. All rights reserved.</p>
+    </footer>
 
     <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.min.js"></script>
     <script src="js/common.js"></script>
@@ -395,6 +399,32 @@
             document.getElementById('scanResult').style.display = 'block';
             document.getElementById('scanResult').scrollIntoView({ behavior: 'smooth' });
 
+            // Set up button actions
+            document.getElementById('viewRecord').onclick = () => {
+                window.location.href = `nurse_records.html?studentId=${appointment.id}`; // appointment.id here might be student ID or we need actual student ID
+            };
+
+            // In our scan result, appointment.id is the appointment ID. 
+            // We need the student ID for records.
+            // Let's re-examine the scan result object.
+            // Server returns: { id: appointment.id, studentName, studentId (number), ... }
+            // We might need to fetch the internal student ID (PK) if appointment.student_id isn't enough.
+            // Wait, the appointment object has student_id in the DB.
+            // Let's check nurse.js scan-appointment-qr again.
+            
+            document.getElementById('viewRecord').onclick = () => {
+                // We need the internal student ID (PK), which is available in the appointment object from server
+                window.location.href = `nurse_records.html?studentId=${appointment.studentInternalId || appointment.student_id}`;
+            };
+
+            document.getElementById('createAppointment').onclick = () => {
+                window.location.href = `nurse_appointments.html?studentId=${appointment.studentInternalId || appointment.student_id}&action=create`;
+            };
+
+            document.getElementById('quickCheckIn').onclick = () => {
+                alert('Student is already checked in!');
+            };
+
             // Add to recent scans
             addToRecentScans(appointment.studentName, appointment.studentId);
         }
@@ -407,23 +437,8 @@
         // Load recent scans
         function loadRecentScans() {
             const recentList = document.getElementById('recentScansList');
-            // This would typically load from local storage or backend
-            recentList.innerHTML = `
-                <div class="scan-item">
-                    <div class="scan-info">
-                        <span class="scan-name">Jane Smith</span>
-                        <span class="scan-time">2 hours ago</span>
-                    </div>
-                    <button class="btn-small" onclick="rescan('STU002')">Rescan</button>
-                </div>
-                <div class="scan-item">
-                    <div class="scan-info">
-                        <span class="scan-name">Mike Johnson</span>
-                        <span class="scan-time">1 day ago</span>
-                    </div>
-                    <button class="btn-small" onclick="rescan('STU003')">Rescan</button>
-                </div>
-            `;
+            // Initialize empty or load from localStorage if needed
+            recentList.innerHTML = '<p class="text-muted">No recent scans</p>';
         }
 
         // Add to recent scans
