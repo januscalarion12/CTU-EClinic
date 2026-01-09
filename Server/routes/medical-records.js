@@ -25,27 +25,17 @@ router.get('/student/:studentId', authorizeRole(['nurse']), async (req, res) => 
     const userId = req.user.id;
     const nurseId = await getNurseId(userId);
 
-    // Verify nurse has access to this student (assigned OR has appointment)
+    // Nurses can access all student records
     const pool = await poolPromise;
-    const accessRequest = pool.request();
-    const accessResult = await accessRequest
-      .input('nurse_id', sql.Int, nurseId)
-      .input('student_id', sql.Int, studentId)
-      .query(`
-        SELECT id FROM nurse_students WHERE nurse_id = @nurse_id AND student_id = @student_id AND is_active = 1
-        UNION
-        SELECT id FROM appointments WHERE nurse_id = @nurse_id AND student_id = @student_id
-      `);
-
-    if (accessResult.recordset.length === 0) {
-      return res.status(403).json({ message: 'Access denied to this student\'s records' });
-    }
 
     const request = pool.request();
     const result = await request
       .input('student_id', sql.Int, studentId)
       .query(`
-        SELECT mr.*, n.name as nurse_name, a.appointment_date, a.reason as appointment_reason
+        SELECT mr.*, n.name as nurse_name, 
+               FORMAT(a.appointment_date, 'yyyy-MM-ddTHH:mm:ss') as appointment_date_iso,
+               FORMAT(mr.visit_date, 'yyyy-MM-ddTHH:mm:ss') as visit_date_iso,
+               a.reason as appointment_reason
         FROM medical_records mr
         JOIN nurses n ON mr.nurse_id = n.id
         LEFT JOIN appointments a ON mr.appointment_id = a.id
@@ -53,7 +43,13 @@ router.get('/student/:studentId', authorizeRole(['nurse']), async (req, res) => 
         ORDER BY mr.visit_date DESC, mr.created_at DESC
       `);
 
-    res.json(result.recordset);
+    const formattedRecords = result.recordset.map(record => ({
+        ...record,
+        appointment_date: record.appointment_date_iso || record.appointment_date,
+        visit_date: record.visit_date_iso || record.visit_date
+    }));
+
+    res.json(formattedRecords);
   } catch (error) {
     console.error('Error fetching medical records:', error);
     if (error.message === 'Nurse profile not found') {
@@ -69,6 +65,7 @@ router.post('/', authorizeRole(['nurse']), async (req, res) => {
     const {
       studentId,
       appointmentId,
+      visitDate,
       recordType,
       symptoms,
       diagnosis,
@@ -82,54 +79,63 @@ router.post('/', authorizeRole(['nurse']), async (req, res) => {
     const userId = req.user.id;
     const nurseId = await getNurseId(userId);
 
-    // Verify nurse has access to this student (assigned OR has appointment)
+    // Nurses can create records for any student
     const pool = await poolPromise;
-    const accessRequest = pool.request();
-    const accessResult = await accessRequest
-      .input('nurse_id', sql.Int, nurseId)
-      .input('student_id', sql.Int, studentId)
-      .query(`
-        SELECT id FROM nurse_students WHERE nurse_id = @nurse_id AND student_id = @student_id AND is_active = 1
-        UNION
-        SELECT id FROM appointments WHERE nurse_id = @nurse_id AND student_id = @student_id
-      `);
 
-    if (accessResult.recordset.length === 0) {
-      return res.status(403).json({ message: 'Access denied to this student' });
+    // Validate student exists
+    const studentCheck = pool.request();
+    const parsedStudentId = parseInt(studentId);
+    
+    if (isNaN(parsedStudentId)) {
+      return res.status(400).json({ message: 'Invalid Student ID. Please select a valid student.' });
+    }
+
+    const studentResult = await studentCheck
+      .input('id', sql.Int, parsedStudentId)
+      .query('SELECT id FROM students WHERE id = @id');
+
+    if (studentResult.recordset.length === 0) {
+      return res.status(404).json({ message: 'Student not found. Please select a valid student from the lookup.' });
     }
 
     const insertRequest = pool.request();
+    console.log('Creating medical record for student:', parsedStudentId, 'by nurse:', nurseId);
+    
     const result = await insertRequest
-      .input('student_id', sql.Int, studentId)
+      .input('student_id', sql.Int, parsedStudentId)
       .input('nurse_id', sql.Int, nurseId)
-      .input('appointment_id', sql.Int, appointmentId || null)
-      .input('record_type', sql.VarChar, recordType)
-      .input('symptoms', sql.NVarChar, symptoms || null)
-      .input('diagnosis', sql.NVarChar, diagnosis || null)
-      .input('treatment', sql.NVarChar, treatment || null)
-      .input('medications', sql.NVarChar, medications || null)
-      .input('vital_signs', sql.NVarChar, vitalSigns || null)
-      .input('notes', sql.NVarChar, notes || null)
+      .input('appointment_id', sql.Int, (appointmentId && !isNaN(parseInt(appointmentId))) ? parseInt(appointmentId) : null)
+      .input('visit_date', sql.DateTime2, visitDate ? new Date(visitDate) : new Date())
+      .input('record_type', sql.NVarChar(20), (recordType || '').toLowerCase().trim())
+      .input('symptoms', sql.NVarChar(sql.MAX), symptoms || null)
+      .input('diagnosis', sql.NVarChar(sql.MAX), diagnosis || null)
+      .input('treatment', sql.NVarChar(sql.MAX), treatment || null)
+      .input('medications', sql.NVarChar(sql.MAX), medications || null)
+      .input('vital_signs', sql.NVarChar(sql.MAX), vitalSigns || null)
+      .input('notes', sql.NVarChar(sql.MAX), notes || null)
       .input('follow_up_required', sql.Bit, followUpRequired || 0)
       .input('follow_up_date', sql.Date, followUpDate || null)
       .query(`
         INSERT INTO medical_records (
-          student_id, nurse_id, appointment_id, record_type, symptoms,
+          student_id, nurse_id, appointment_id, visit_date, record_type, symptoms,
           diagnosis, treatment, medications, vital_signs, notes,
           follow_up_required, follow_up_date
         ) VALUES (
-          @student_id, @nurse_id, @appointment_id, @record_type, @symptoms,
+          @student_id, @nurse_id, @appointment_id, @visit_date, @record_type, @symptoms,
           @diagnosis, @treatment, @medications, @vital_signs, @notes,
           @follow_up_required, @follow_up_date
         );
-        SELECT SCOPE_IDENTITY() AS id
+        SELECT SCOPE_IDENTITY() AS id;
       `);
 
+    const recordId = result.recordset[0].id;
+    console.log('Medical record created successfully with ID:', recordId);
+
     // Update appointment status to completed if this is linked to an appointment
-    if (appointmentId) {
+    if (appointmentId && !isNaN(parseInt(appointmentId))) {
       const updateAppointmentRequest = pool.request();
       await updateAppointmentRequest
-        .input('appointment_id', sql.Int, appointmentId)
+        .input('appointment_id', sql.Int, parseInt(appointmentId))
         .query(`
           UPDATE appointments
           SET status = 'completed', check_out_time = GETDATE(), updated_at = GETDATE()
@@ -139,11 +145,16 @@ router.post('/', authorizeRole(['nurse']), async (req, res) => {
 
     res.status(201).json({
       message: 'Medical record created successfully',
-      recordId: result.recordset[0].id
+      recordId: recordId
     });
   } catch (error) {
-    console.error('Error creating medical record:', error);
-    res.status(500).json({ message: 'Error creating medical record' });
+    console.error('Error creating medical record details:', {
+      error: error.message,
+      stack: error.stack,
+      body: req.body,
+      user: req.user
+    });
+    res.status(500).json({ message: 'Error creating medical record: ' + error.message });
   }
 });
 
@@ -154,6 +165,7 @@ router.put('/:id', authorizeRole(['nurse']), async (req, res) => {
     const userId = req.user.id;
     const nurseId = await getNurseId(userId);
     const {
+      visitDate,
       recordType,
       symptoms,
       diagnosis,
@@ -181,18 +193,20 @@ router.put('/:id', authorizeRole(['nurse']), async (req, res) => {
     const updateRequest = pool.request();
     await updateRequest
       .input('record_id', sql.Int, recordId)
-      .input('record_type', sql.VarChar, recordType)
-      .input('symptoms', sql.NVarChar, symptoms || null)
-      .input('diagnosis', sql.NVarChar, diagnosis || null)
-      .input('treatment', sql.NVarChar, treatment || null)
-      .input('medications', sql.NVarChar, medications || null)
-      .input('vital_signs', sql.NVarChar, vitalSigns || null)
-      .input('notes', sql.NVarChar, notes || null)
+      .input('visit_date', sql.DateTime2, visitDate ? new Date(visitDate) : null)
+      .input('record_type', sql.NVarChar(20), (recordType || '').toLowerCase().trim())
+      .input('symptoms', sql.NVarChar(sql.MAX), symptoms || null)
+      .input('diagnosis', sql.NVarChar(sql.MAX), diagnosis || null)
+      .input('treatment', sql.NVarChar(sql.MAX), treatment || null)
+      .input('medications', sql.NVarChar(sql.MAX), medications || null)
+      .input('vital_signs', sql.NVarChar(sql.MAX), vitalSigns || null)
+      .input('notes', sql.NVarChar(sql.MAX), notes || null)
       .input('follow_up_required', sql.Bit, followUpRequired || 0)
       .input('follow_up_date', sql.Date, followUpDate || null)
       .query(`
         UPDATE medical_records
-        SET record_type = @record_type,
+        SET visit_date = ISNULL(@visit_date, visit_date),
+            record_type = @record_type,
             symptoms = @symptoms,
             diagnosis = @diagnosis,
             treatment = @treatment,
@@ -263,7 +277,9 @@ router.get('/:id', authorizeRole(['nurse']), async (req, res) => {
       .input('record_id', sql.Int, recordId)
       .input('nurse_id', sql.Int, nurseId)
       .query(`
-        SELECT mr.*, n.name as nurse_name, s.name as student_name, a.appointment_date
+        SELECT mr.*, n.name as nurse_name, s.name as student_name, 
+               FORMAT(a.appointment_date, 'yyyy-MM-ddTHH:mm:ss') as appointment_date_iso,
+               FORMAT(mr.visit_date, 'yyyy-MM-ddTHH:mm:ss') as visit_date_iso
         FROM medical_records mr
         JOIN nurses n ON mr.nurse_id = n.id
         JOIN students s ON mr.student_id = s.id
@@ -275,7 +291,11 @@ router.get('/:id', authorizeRole(['nurse']), async (req, res) => {
       return res.status(404).json({ message: 'Medical record not found' });
     }
 
-    res.json(result.recordset[0]);
+    const record = result.recordset[0];
+    record.appointment_date = record.appointment_date_iso || record.appointment_date;
+    record.visit_date = record.visit_date_iso || record.visit_date;
+    
+    res.json(record);
   } catch (error) {
     console.error('Error fetching medical record:', error);
     if (error.message === 'Nurse profile not found') {

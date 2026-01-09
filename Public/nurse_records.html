@@ -6,6 +6,67 @@
     <title>Nurse Records - Clinic Management System</title>
     <link rel="stylesheet" href="css/style.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <style>
+        .table-container {
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            overflow-x: auto;
+            margin-top: 20px;
+        }
+        .data-table {
+            width: 100%;
+            border-collapse: collapse;
+            text-align: left;
+        }
+        .data-table th, .data-table td {
+            padding: 12px 15px;
+            border-bottom: 1px solid #eee;
+        }
+        .data-table th {
+            background-color: #f8f9fa;
+            color: #333;
+            font-weight: 600;
+        }
+        .data-table tr:hover {
+            background-color: #f1f4f8;
+        }
+        .record-type-badge {
+            padding: 4px 8px;
+            border-radius: 12px;
+            font-size: 0.85em;
+            text-transform: capitalize;
+        }
+        .type-consultation { background: #e3f2fd; color: #1976d2; }
+        .type-checkup { background: #e8f5e9; color: #2e7d32; }
+        .type-emergency { background: #ffebee; color: #c62828; }
+        .type-vaccination { background: #f3e5f5; color: #7b1fa2; }
+        .type-follow_up { background: #fff3e0; color: #ef6c00; }
+        
+        .truncate-cell {
+            max-width: 200px;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+        .actions-cell {
+            white-space: nowrap;
+        }
+        .btn-icon {
+            background: none;
+            border: none;
+            cursor: pointer;
+            padding: 8px;
+            margin: 0 4px;
+            border-radius: 4px;
+            transition: background 0.2s;
+        }
+        .btn-view { color: #2196f3; }
+        .btn-edit { color: #ff9800; }
+        .btn-delete { color: #f44336; }
+        .btn-icon:hover { background-color: rgba(0,0,0,0.05); }
+        .text-center { text-align: center; }
+    </style>
 </head>
 <body>
     <!-- Top Header -->
@@ -52,6 +113,7 @@
                 <li><a href="nurse_availability.html"><span class="nav-icon"><i class="fas fa-clock"></i></span><span class="nav-text">Availability</span></a></li>
                 <li><a href="nurse_reports.html"><span class="nav-icon"><i class="fas fa-chart-bar"></i></span><span class="nav-text">Reports</span></a></li>
                 <li><a href="nurse_scan.html"><span class="nav-icon"><i class="fas fa-qrcode"></i></span><span class="nav-text">QR Scanner</span></a></li>
+                <li><a href="archive.html"><span class="nav-icon"><i class="fas fa-archive"></i></span><span class="nav-text">Archive</span></a></li>
                 <li><a href="nurse_profile.html"><span class="nav-icon"><i class="fas fa-user"></i></span><span class="nav-text">Profile</span></a></li>
                 <li><a href="#" id="logout"><span class="nav-icon"><i class="fas fa-sign-out-alt"></i></span><span class="nav-text">Logout</span></a></li>
             </ul>
@@ -108,9 +170,10 @@
                         <select id="recordTypeFilter" class="filter-select">
                             <option value="">All Record Types</option>
                             <option value="consultation">Consultation</option>
-                            <option value="treatment">Treatment</option>
+                            <option value="checkup">Checkup</option>
                             <option value="vaccination">Vaccination</option>
                             <option value="emergency">Emergency</option>
+                            <option value="follow_up">Follow-up</option>
                         </select>
                         <select id="dateFilter" class="filter-select">
                             <option value="">All Dates</option>
@@ -133,8 +196,22 @@
                         <span id="totalRecords">0</span> records found
                     </div>
                 </div>
-                <div id="recordsContainer" class="records-grid">
-                    <!-- Records will be loaded here -->
+                <div class="table-container">
+                    <table id="recordsTable" class="data-table">
+                        <thead>
+                            <tr>
+                                <th>Date</th>
+                                <th>Student</th>
+                                <th>Type</th>
+                                <th>Diagnosis</th>
+                                <th>Treatment</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="recordsContainer">
+                            <!-- Records will be loaded here -->
+                        </tbody>
+                    </table>
                 </div>
             </div>
 
@@ -147,10 +224,12 @@
                     </div>
                     <form id="addRecordForm">
                         <input type="hidden" id="recordId" name="recordId">
+                        <input type="hidden" id="internalStudentId" name="internalStudentId">
+                        <input type="hidden" id="appointmentId" name="appointmentId">
                         <div class="form-row">
                             <div class="form-group">
-                                <label for="studentId">Student ID</label>
-                                <input type="text" id="studentId" name="studentId" required>
+                                <label for="studentId">Student ID/Number</label>
+                                <input type="text" id="studentId" name="studentId" required placeholder="Enter Student Number">
                             </div>
                             <div class="form-group">
                                 <label for="studentName">Student Name</label>
@@ -163,16 +242,20 @@
                                 <select id="recordType" name="recordType" required>
                                     <option value="">Select Type</option>
                                     <option value="consultation">Consultation</option>
-                                    <option value="treatment">Treatment</option>
+                                    <option value="checkup">Checkup</option>
                                     <option value="vaccination">Vaccination</option>
                                     <option value="emergency">Emergency</option>
-                                    <option value="follow-up">Follow-up</option>
+                                    <option value="follow_up">Follow-up</option>
                                 </select>
                             </div>
                             <div class="form-group">
                                 <label for="visitDate">Visit Date</label>
                                 <input type="date" id="visitDate" name="visitDate" required>
                             </div>
+                        </div>
+                        <div class="form-group">
+                            <label for="symptoms">Symptoms</label>
+                            <textarea id="symptoms" name="symptoms" rows="2" required placeholder="Enter student's symptoms"></textarea>
                         </div>
                         <div class="form-group">
                             <label for="diagnosis">Diagnosis/Condition</label>
@@ -242,17 +325,62 @@
             }
         });
 
+        document.getElementById('studentId').addEventListener('input', function() {
+            const studentId = this.value;
+            if (studentId) {
+                // Clear current info while fetching
+                document.getElementById('internalStudentId').value = '';
+                document.getElementById('studentName').value = 'Looking up...';
+                
+                // Debounce lookup
+                clearTimeout(this.lookupTimeout);
+                this.lookupTimeout = setTimeout(() => {
+                    fetchStudentInfo(studentId);
+                }, 500);
+            } else {
+                document.getElementById('internalStudentId').value = '';
+                document.getElementById('studentName').value = '';
+            }
+        });
+
         // Form functions
         function showAddRecordForm() {
             document.getElementById('formTitle').textContent = 'Add New Medical Record';
             document.getElementById('recordForm').style.display = 'block';
-            document.getElementById('addRecordForm').reset();
-            document.getElementById('studentId').focus();
+            document.getElementById('studentId').readOnly = false;
+            
+            // Don't reset if we have a studentId in URL
+            const urlParams = new URLSearchParams(window.location.search);
+            const studentIdFromUrl = urlParams.get('studentId');
+            
+            if (!studentIdFromUrl) {
+                document.getElementById('addRecordForm').reset();
+                document.getElementById('internalStudentId').value = '';
+                document.getElementById('studentId').focus();
+            } else {
+                // If studentId from URL, just clear the other fields but keep the student info
+                document.getElementById('recordId').value = '';
+                document.getElementById('recordType').value = '';
+                document.getElementById('visitDate').value = new Date().toISOString().split('T')[0];
+                document.getElementById('symptoms').value = '';
+                document.getElementById('diagnosis').value = '';
+                document.getElementById('treatment').value = '';
+                document.getElementById('medication').value = '';
+                document.getElementById('notes').value = '';
+                
+                // Trigger student info fetch if not already populated
+                if (!document.getElementById('internalStudentId').value) {
+                    fetchStudentInfo(studentIdFromUrl);
+                }
+            }
         }
 
         function hideRecordForm() {
             document.getElementById('recordForm').style.display = 'none';
             document.getElementById('addRecordForm').reset();
+            document.getElementById('internalStudentId').value = '';
+            document.getElementById('appointmentId').value = '';
+            document.getElementById('studentId').readOnly = false;
         }
 
         function focusSearch() {
@@ -286,18 +414,29 @@
             const studentIdFromUrl = urlParams.get('studentId');
 
             try {
-                let url = '/api/nurse/students'; // We can use the students list to find records or medical-records endpoint
-                // Actually, we want to see records. Let's use the medical-records endpoint if it supports search
-                // For now, let's just implement loading records for a specific student if studentId is provided
-                
                 if (studentIdFromUrl) {
                     const response = await fetch(`/api/medical-records/student/${studentIdFromUrl}`);
                     if (response.ok) {
                         const records = await response.json();
                         displayRecords(records);
-                        
-                        // Also auto-fill student info if we're adding a new record
                         fetchStudentInfo(studentIdFromUrl);
+                    }
+                } else if (search) {
+                    // Search students first to get ID
+                    const response = await fetch(`/api/nurse/students?search=${search}`);
+                    if (response.ok) {
+                        const students = await response.json();
+                        if (students.length > 0) {
+                            // Fetch records for the first matching student as an example
+                            const studentId = students[0].id;
+                            const recResponse = await fetch(`/api/medical-records/student/${studentId}`);
+                            if (recResponse.ok) {
+                                const records = await recResponse.json();
+                                displayRecords(records);
+                            }
+                        } else {
+                            container.innerHTML = '<p>No students found matching your search.</p>';
+                        }
                     }
                 } else {
                     // Load all students the nurse has access to
@@ -318,79 +457,176 @@
         function displayRecords(records) {
             const container = document.getElementById('recordsContainer');
             if (records.length === 0) {
-                container.innerHTML = '<p>No records found for this student.</p>';
+                container.innerHTML = '<tr><td colspan="6" class="text-center">No records found for this student.</td></tr>';
                 document.getElementById('totalRecords').textContent = '0';
                 return;
             }
 
             container.innerHTML = records.map(record => `
-                <div class="record-card">
-                    <div class="record-header">
-                        <h4>${record.student_name || 'Patient'}</h4>
-                        <span class="record-date">${new Date(record.visit_date).toLocaleDateString()}</span>
-                    </div>
-                    <div class="record-type">${record.record_type}</div>
-                    <div class="record-summary">
-                        <p><strong>Diagnosis:</strong> ${record.diagnosis || 'N/A'}</p>
-                        <p><strong>Treatment:</strong> ${record.treatment || 'N/A'}</p>
-                    </div>
-                    <div class="record-actions">
-                        <button class="btn-small" onclick="viewRecordDetails(${record.id})">View</button>
-                    </div>
-                </div>
+                <tr>
+                    <td>${new Date(record.visit_date).toLocaleDateString()}</td>
+                    <td>${record.student_name || 'Patient'}</td>
+                    <td><span class="record-type-badge type-${record.record_type}">${record.record_type}</span></td>
+                    <td class="truncate-cell" title="${record.diagnosis || 'N/A'}">${record.diagnosis || 'N/A'}</td>
+                    <td class="truncate-cell" title="${record.treatment || 'N/A'}">${record.treatment || 'N/A'}</td>
+                    <td class="actions-cell">
+                        <button class="btn-icon btn-view" onclick="viewRecordDetails(${record.id})" title="View Details"><i class="fas fa-eye"></i></button>
+                        <button class="btn-icon btn-edit" onclick="editRecord(${record.id})" title="Edit Record"><i class="fas fa-edit"></i></button>
+                        <button class="btn-icon btn-delete" onclick="deleteRecord(${record.id})" title="Delete Record"><i class="fas fa-trash"></i></button>
+                    </td>
+                </tr>
             `).join('');
             document.getElementById('totalRecords').textContent = records.length;
         }
 
-        async function fetchStudentInfo(studentId) {
+        async function editRecord(recordId) {
             try {
-                // We need an endpoint to get student info by their internal ID
-                // nurse.js has /students which returns all. Let's see if there is a specific one.
-                const response = await fetch('/api/nurse/students');
+                const response = await fetch(`/api/medical-records/${recordId}`);
                 if (response.ok) {
-                    const students = await response.json();
-                    const student = students.find(s => s.id == studentId);
-                    if (student) {
-                        document.getElementById('studentId').value = student.id;
-                        document.getElementById('studentName').value = student.name;
+                    const record = await response.json();
+                    
+                    // Populate form
+                    document.getElementById('recordId').value = record.id;
+                    document.getElementById('internalStudentId').value = record.student_id;
+                    document.getElementById('studentId').value = record.student_id_number || record.ctu_id || record.student_id;
+                    document.getElementById('studentName').value = record.student_name;
+                    document.getElementById('recordType').value = record.record_type;
+                    document.getElementById('visitDate').value = new Date(record.visit_date).toISOString().split('T')[0];
+                    document.getElementById('symptoms').value = record.symptoms || '';
+                    document.getElementById('diagnosis').value = record.diagnosis || '';
+                    document.getElementById('treatment').value = record.treatment || '';
+                    document.getElementById('medication').value = record.medications || '';
+                    document.getElementById('followUp').value = record.follow_up_required ? 'yes' : 'no';
+                    document.getElementById('notes').value = record.notes || '';
+                    
+                    document.getElementById('formTitle').textContent = 'Edit Medical Record';
+                    document.getElementById('recordForm').style.display = 'block';
+                    document.getElementById('recordForm').scrollIntoView({ behavior: 'smooth' });
+                    
+                    // Make student ID readonly during edit
+                    document.getElementById('studentId').readOnly = true;
+                } else {
+                    const error = await response.json();
+                    alert('Error fetching record: ' + error.message);
+                }
+            } catch (error) {
+                console.error('Error editing record:', error);
+                alert('Error fetching record details');
+            }
+        }
+
+        async function deleteRecord(recordId) {
+            if (confirm('Are you sure you want to delete this medical record? This action cannot be undone.')) {
+                try {
+                    const response = await fetch(`/api/medical-records/${recordId}`, {
+                        method: 'DELETE',
+                        headers: {
+                            'Authorization': `Bearer ${localStorage.getItem('token')}`
+                        }
+                    });
+
+                    if (response.ok) {
+                        alert('Record deleted successfully');
+                        loadRecords();
+                    } else {
+                        const error = await response.json();
+                        alert('Error deleting record: ' + error.message);
                     }
+                } catch (error) {
+                    console.error('Error deleting record:', error);
+                    alert('Error deleting record');
+                }
+            }
+        }
+
+        async function viewRecordDetails(recordId) {
+            try {
+                const response = await fetch(`/api/medical-records/${recordId}`);
+                if (response.ok) {
+                    const record = await response.json();
+                    alert(`Record Details:\nPatient: ${record.student_name}\nType: ${record.record_type}\nDiagnosis: ${record.diagnosis}\nTreatment: ${record.treatment}`);
+                }
+            } catch (error) {
+                console.error('Error viewing record details:', error);
+            }
+        }
+
+        async function fetchStudentInfo(studentId) {
+            if (!studentId) {
+                document.getElementById('internalStudentId').value = '';
+                document.getElementById('studentName').value = '';
+                return;
+            }
+
+            try {
+                const response = await fetch(`/api/nurse/students/${studentId}`);
+                if (response.ok) {
+                    const student = await response.json();
+                    document.getElementById('internalStudentId').value = student.id;
+                    document.getElementById('studentName').value = student.name;
+                    document.getElementById('studentName').style.color = 'inherit';
+                } else {
+                    document.getElementById('internalStudentId').value = '';
+                    document.getElementById('studentName').value = 'Student not found';
+                    document.getElementById('studentName').style.color = 'red';
                 }
             } catch (error) {
                 console.error('Error fetching student info:', error);
+                document.getElementById('internalStudentId').value = '';
+                document.getElementById('studentName').value = 'Error looking up student';
             }
         }
 
         // Handle Add Record Form Submission
-        document.getElementById('addRecordForm').addEventListener('submit', async (e) => {
+        document.getElementById('addRecordForm').addEventListener('submit', async function(e) {
             e.preventDefault();
-            const formData = new FormData(e.target);
-            const data = {
-                studentId: formData.get('studentId'),
-                recordType: formData.get('recordType'),
-                visitDate: formData.get('visitDate'),
-                diagnosis: formData.get('diagnosis'),
-                treatment: formData.get('treatment'),
-                medications: formData.get('medication'),
-                notes: formData.get('notes'),
-                followUpRequired: formData.get('followUp') === 'yes' ? 1 : 0
+            
+            const internalId = document.getElementById('internalStudentId').value;
+            const studentName = document.getElementById('studentName').value;
+            
+            if (!internalId || studentName === 'Student not found') {
+                alert('Please enter a valid Student ID and wait for the student information to be found.');
+                document.getElementById('studentId').focus();
+                return;
+            }
+
+            const recordId = document.getElementById('recordId').value;
+            const method = recordId ? 'PUT' : 'POST';
+            const url = recordId ? `/api/medical-records/${recordId}` : '/api/medical-records';
+
+            const formData = {
+                studentId: internalId,
+                appointmentId: document.getElementById('appointmentId').value,
+                visitDate: document.getElementById('visitDate').value,
+                recordType: document.getElementById('recordType').value,
+                symptoms: document.getElementById('symptoms').value,
+                diagnosis: document.getElementById('diagnosis').value,
+                treatment: document.getElementById('treatment').value,
+                medications: document.getElementById('medication').value,
+                notes: document.getElementById('notes').value,
+                followUpRequired: document.getElementById('followUp').value === 'yes'
             };
 
             try {
-                const response = await fetch('/api/medical-records', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(data)
+                const response = await fetch(url, {
+                    method: method,
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${localStorage.getItem('token')}`
+                    },
+                    body: JSON.stringify(formData)
                 });
 
                 if (response.ok) {
-                    alert('Record saved successfully!');
+                    alert(recordId ? 'Record updated successfully!' : 'Record saved successfully!');
                     hideRecordForm();
                     loadRecords();
                 } else {
-                    const err = await response.json();
-                    alert('Error: ' + err.message);
+                    const error = await response.json();
+                    alert('Error saving record: ' + error.message);
                 }
             } catch (error) {
+                console.error('Error saving record:', error);
                 alert('Error saving record');
             }
         });
@@ -399,10 +635,21 @@
         document.addEventListener('DOMContentLoaded', function() {
             loadRecords();
             
-            // If studentId is in URL, auto-open form
+            document.getElementById('searchBtn').addEventListener('click', loadRecords);
+            
+            // If studentId is in URL, auto-open form and populate ID
             const urlParams = new URLSearchParams(window.location.search);
-            if (urlParams.get('studentId')) {
+            const studentIdFromUrl = urlParams.get('studentId');
+            const appointmentIdFromUrl = urlParams.get('appointmentId');
+            
+            if (appointmentIdFromUrl) {
+                document.getElementById('appointmentId').value = appointmentIdFromUrl;
+            }
+            
+            if (studentIdFromUrl) {
+                document.getElementById('studentId').value = studentIdFromUrl;
                 showAddRecordForm();
+                // fetchStudentInfo will be called by showAddRecordForm -> fetchStudentInfo
             }
         });
     </script>

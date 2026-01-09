@@ -11,7 +11,7 @@ Base table for all user types (admin, nurse, student).
 ```sql
 CREATE TABLE users (
     id INT IDENTITY(1,1) PRIMARY KEY,
-    role NVARCHAR(20) NOT NULL CHECK (role IN ('nurse', 'student')),
+    role NVARCHAR(20) NOT NULL CHECK (role IN ('nurse', 'student', 'admin')),
     first_name NVARCHAR(100) NOT NULL,
     middle_name NVARCHAR(100),
     last_name NVARCHAR(100) NOT NULL,

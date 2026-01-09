@@ -201,6 +201,16 @@
 
     <script src="js/common.js"></script>
     <script>
+        // Global auth check
+        (function() {
+            const token = localStorage.getItem('token');
+            const user = JSON.parse(localStorage.getItem('user'));
+            
+            if (!token || !user || user.role.toLowerCase() !== 'admin') {
+                window.location.href = 'login.html';
+            }
+        })();
+
         // Sidebar toggle functionality
         document.getElementById('sidebarToggle').addEventListener('click', function() {
             const sidebar = document.getElementById('sidebar');
@@ -228,13 +238,46 @@
             }
         });
 
+        // Helper function for fetch with auth
+        async function fetchWithAuth(url, options = {}) {
+            const token = localStorage.getItem('token');
+            const defaultOptions = {
+                credentials: 'include',
+                headers: {
+                    'Content-Type': 'application/json'
+                }
+            };
+
+            if (token) {
+                defaultOptions.headers['Authorization'] = `Bearer ${token}`;
+            }
+
+            const combinedOptions = {
+                ...defaultOptions,
+                ...options,
+                headers: {
+                    ...defaultOptions.headers,
+                    ...(options.headers || {})
+                }
+            };
+
+            return fetch(url, combinedOptions);
+        }
+
         // Load system statistics
-        function loadSystemStats() {
-            // This would typically fetch data from your backend
-            document.getElementById('totalUsers').textContent = '387';
-            document.getElementById('activeNurses').textContent = '12';
-            document.getElementById('totalStudents').textContent = '245';
-            document.getElementById('monthlyAppointments').textContent = '1,247';
+        async function loadSystemStats() {
+            try {
+                const response = await fetchWithAuth('/api/admin/dashboard-stats');
+                if (response.ok) {
+                    const stats = await response.json();
+                    document.getElementById('totalUsers').textContent = stats.totalUsers || 0;
+                    document.getElementById('activeNurses').textContent = stats.totalNurses || 0;
+                    document.getElementById('totalStudents').textContent = stats.totalStudents || 0;
+                    document.getElementById('monthlyAppointments').textContent = stats.totalAppointments || 0;
+                }
+            } catch (error) {
+                console.error('Error loading stats:', error);
+            }
         }
 
         // Administrative functions
@@ -249,17 +292,7 @@
 
         async function loadAdminProfile() {
             try {
-                const token = localStorage.getItem('token');
-                if (!token) {
-                    window.location.href = 'login.html';
-                    return;
-                }
-
-                const response = await fetch('/api/auth/profile', {
-                    headers: {
-                        'Authorization': `Bearer ${token}`
-                    }
-                });
+                const response = await fetchWithAuth('/api/auth/profile');
 
                 if (response.ok) {
                     const userData = await response.json();
@@ -284,7 +317,6 @@
             e.preventDefault();
 
             try {
-                const token = localStorage.getItem('token');
                 const formData = new FormData(this);
 
                 const updateData = {
@@ -297,12 +329,8 @@
                     department: formData.get('department')
                 };
 
-                const response = await fetch('/api/admin/profile', {
+                const response = await fetchWithAuth('/api/admin/profile', {
                     method: 'PUT',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'Authorization': `Bearer ${token}`
-                    },
                     body: JSON.stringify(updateData)
                 });
 

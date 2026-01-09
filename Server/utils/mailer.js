@@ -138,7 +138,7 @@ const sendEmailConfirmation = async (email, verificationCode) => {
     html: `
       <h2>Welcome to CTU E-Clinic</h2>
       <p>Thank you for registering! Please verify your email address to activate your account.</p>
-      <p>Your verification code is:</p>
+      <p>Use your verification code:</p>
       <h1 style="font-size: 32px; font-weight: bold; color: #007bff; text-align: center; margin: 20px 0;">${verificationCode}</h1>
       <p>Enter this code on the verification page to activate your account.</p>
       <p>This code will expire in 24 hours.</p>

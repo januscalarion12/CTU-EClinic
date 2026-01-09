@@ -462,6 +462,96 @@
         function testIntegrations() {
             alert('Testing integrations...');
         }
+        // Helper function for fetch with auth
+        async function fetchWithAuth(url, options = {}) {
+            const token = localStorage.getItem('token');
+            const defaultOptions = {
+                credentials: 'include',
+                headers: {
+                    'Content-Type': 'application/json'
+                }
+            };
+
+            if (token) {
+                defaultOptions.headers['Authorization'] = `Bearer ${token}`;
+            }
+
+            const combinedOptions = {
+                ...defaultOptions,
+                ...options,
+                headers: {
+                    ...defaultOptions.headers,
+                    ...(options.headers || {})
+                }
+            };
+
+            return fetch(url, combinedOptions);
+        }
+
+        // Load settings on load
+        async function loadSettings() {
+            try {
+                const response = await fetchWithAuth('/api/admin/settings');
+                const settings = await response.json();
+                
+                if (response.ok) {
+                    for (const key in settings) {
+                        const element = document.getElementsByName(key)[0];
+                        if (element) {
+                            if (element.type === 'checkbox') {
+                                element.checked = settings[key] === 'true' || settings[key] === true;
+                            } else {
+                                element.value = settings[key];
+                            }
+                        }
+                    }
+                }
+            } catch (error) {
+                console.error('Error loading settings:', error);
+            }
+        }
+
+        async function handleSettingsSubmit(e) {
+            e.preventDefault();
+            const formData = new FormData(e.target);
+            const settings = {};
+            
+            // Handle checkboxes that are not in FormData when unchecked
+            const checkboxes = e.target.querySelectorAll('input[type="checkbox"]');
+            checkboxes.forEach(cb => {
+                settings[cb.name] = cb.checked;
+            });
+            
+            for (let [key, value] of formData.entries()) {
+                if (!settings.hasOwnProperty(key)) {
+                    settings[key] = value;
+                }
+            }
+
+            try {
+                const response = await fetchWithAuth('/api/admin/settings', {
+                    method: 'POST',
+                    body: JSON.stringify(settings)
+                });
+
+                if (response.ok) {
+                    showSuccess('Settings updated successfully');
+                } else {
+                    showError('Failed to update settings');
+                }
+            } catch (error) {
+                console.error('Error saving settings:', error);
+                showError('Network error');
+            }
+        }
+
+        // Add event listeners to all forms
+        document.querySelectorAll('form').forEach(form => {
+            form.addEventListener('submit', handleSettingsSubmit);
+        });
+
+        // Initialize
+        loadSettings();
     </script>
 </body>
 </html>

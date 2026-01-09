@@ -3,6 +3,21 @@ const router = express.Router();
 const { poolPromise, sql } = require('../db');
 const { authorizeRole } = require('../middleware/auth');
 
+// Helper function to get nurse ID from user ID
+async function getNurseId(userId) {
+  const pool = await poolPromise;
+  const nurseRequest = pool.request();
+  const nurseResult = await nurseRequest
+    .input('user_id', sql.Int, userId)
+    .query('SELECT id FROM nurses WHERE user_id = @user_id');
+
+  if (nurseResult.recordset.length === 0) {
+    throw new Error('Nurse profile not found');
+  }
+
+  return nurseResult.recordset[0].id;
+}
+
 // Generate appointment report
 router.get('/appointments', authorizeRole(['nurse', 'admin']), async (req, res) => {
   try {
@@ -33,13 +48,10 @@ router.get('/appointments', authorizeRole(['nurse', 'admin']), async (req, res) 
     const conditions = [];
     const request = pool.request();
 
-    if (userRole === 'nurse') {
-      // Nurses can only see their own appointments
-      conditions.push('a.nurse_id = (SELECT id FROM nurses WHERE user_id = @user_id)');
-      request.input('user_id', sql.Int, userId);
-    } else if (nurseId) {
+    if (userRole === 'nurse' || nurseId) {
+      const targetNurseId = nurseId || await getNurseId(userId);
       conditions.push('a.nurse_id = @nurse_id');
-      request.input('nurse_id', sql.Int, nurseId);
+      request.input('nurse_id', sql.Int, targetNurseId);
     }
 
     if (startDate) {
@@ -120,10 +132,7 @@ router.get('/medical-records', authorizeRole(['nurse', 'admin']), async (req, re
     const conditions = [];
     const request = pool.request();
 
-    if (userRole === 'nurse') {
-      conditions.push('mr.nurse_id = (SELECT id FROM nurses WHERE user_id = @user_id)');
-      request.input('user_id', sql.Int, userId);
-    } else if (nurseId) {
+    if (nurseId) {
       conditions.push('mr.nurse_id = @nurse_id');
       request.input('nurse_id', sql.Int, nurseId);
     }
@@ -209,16 +218,6 @@ router.get('/students', authorizeRole(['nurse', 'admin']), async (req, res) => {
     const conditions = [];
     const request = pool.request();
 
-    if (userRole === 'nurse') {
-      // Nurses can see students who have an appointment or medical record with them
-      conditions.push(`(
-        EXISTS (SELECT 1 FROM appointments a2 WHERE a2.student_id = s.id AND a2.nurse_id = (SELECT id FROM nurses WHERE user_id = @user_id))
-        OR EXISTS (SELECT 1 FROM medical_records mr2 WHERE mr2.student_id = s.id AND mr2.nurse_id = (SELECT id FROM nurses WHERE user_id = @user_id))
-        OR EXISTS (SELECT 1 FROM nurse_students ns WHERE ns.student_id = s.id AND ns.nurse_id = (SELECT id FROM nurses WHERE user_id = @user_id) AND ns.is_active = 1)
-      )`);
-      request.input('user_id', sql.Int, userId);
-    }
-
     if (department) {
       conditions.push('s.department = @department');
       request.input('department', sql.VarChar, department);
@@ -272,10 +271,6 @@ router.get('/statistics', authorizeRole(['nurse', 'admin']), async (req, res) =>
     let dateCondition = '';
     const request = pool.request();
 
-    if (userRole === 'nurse') {
-      request.input('user_id', sql.Int, userId);
-    }
-
     // Calculate date range based on period
     const now = new Date();
     let startDate;
@@ -308,10 +303,6 @@ router.get('/statistics', authorizeRole(['nurse', 'admin']), async (req, res) =>
       WHERE CAST(a.appointment_date AS DATE) >= @start_date
     `;
 
-    if (userRole === 'nurse') {
-      appointmentsQuery += ' AND a.nurse_id = (SELECT id FROM nurses WHERE user_id = @user_id)';
-    }
-
     const appointmentsResult = await request.query(appointmentsQuery);
 
     // Completed appointments
@@ -320,10 +311,6 @@ router.get('/statistics', authorizeRole(['nurse', 'admin']), async (req, res) =>
       FROM appointments a
       WHERE a.status = 'completed' AND CAST(a.appointment_date AS DATE) >= @start_date
     `;
-
-    if (userRole === 'nurse') {
-      completedQuery += ' AND a.nurse_id = (SELECT id FROM nurses WHERE user_id = @user_id)';
-    }
 
     const completedResult = await request.query(completedQuery);
 
@@ -334,24 +321,10 @@ router.get('/statistics', authorizeRole(['nurse', 'admin']), async (req, res) =>
       WHERE CAST(mr.visit_date AS DATE) >= @start_date
     `;
 
-    if (userRole === 'nurse') {
-      recordsQuery += ' AND mr.nurse_id = (SELECT id FROM nurses WHERE user_id = @user_id)';
-    }
-
     const recordsResult = await request.query(recordsQuery);
 
     // Total students
     let studentsQuery = 'SELECT COUNT(*) as total FROM students s';
-
-    if (userRole === 'nurse') {
-      studentsQuery += ` WHERE EXISTS (
-        SELECT 1 FROM appointments a2 WHERE a2.student_id = s.id AND a2.nurse_id = (SELECT id FROM nurses WHERE user_id = @user_id)
-        UNION
-        SELECT 1 FROM medical_records mr2 WHERE mr2.student_id = s.id AND mr2.nurse_id = (SELECT id FROM nurses WHERE user_id = @user_id)
-        UNION
-        SELECT 1 FROM nurse_students ns WHERE ns.student_id = s.id AND ns.nurse_id = (SELECT id FROM nurses WHERE user_id = @user_id) AND ns.is_active = 1
-      )`;
-    }
 
     const studentsResult = await request.query(studentsQuery);
 

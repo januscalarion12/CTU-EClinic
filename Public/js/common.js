@@ -1,7 +1,7 @@
 // Common JavaScript functions for the Clinic Management System
 
 // API base URL
-const API_BASE_URL = 'http://localhost:3000/api';
+const API_BASE_URL = '/api';
 
 // DOM Content Loaded
 document.addEventListener('DOMContentLoaded', function() {
@@ -149,7 +149,10 @@ async function handleLogin(e) {
             localStorage.setItem('user', JSON.stringify(result.user));
 
             // Redirect based on role
-            switch (result.user.role) {
+            console.log('Redirecting user with role:', result.user.role);
+            const userRole = result.user.role ? result.user.role.toLowerCase() : '';
+
+            switch (userRole) {
                 case 'student':
                     window.location.href = 'student.html';
                     break;
@@ -157,9 +160,10 @@ async function handleLogin(e) {
                     window.location.href = 'nurse_dashboard.html';
                     break;
                 case 'admin':
-                    window.location.href = 'admin_dashboard.html';
+                    window.location.href = 'admin.html';
                     break;
                 default:
+                    console.warn('Unknown role, defaulting to index.html');
                     window.location.href = 'index.html';
             }
         } else {
@@ -415,8 +419,22 @@ async function handleRecordSave(e) {
 
     const method = recordData.recordId ? 'PUT' : 'POST';
     const url = recordData.recordId
-        ? `${API_BASE_URL}/records/${recordData.recordId}`
-        : `${API_BASE_URL}/records`;
+        ? `${API_BASE_URL}/medical-records/${recordData.recordId}`
+        : `${API_BASE_URL}/medical-records`;
+
+    // Map fields for medical records API
+    const data = {
+        ...recordData,
+        studentId: recordData.internalStudentId,
+        medications: recordData.medication,
+        followUpRequired: recordData.followUp === 'yes' ? 1 : 0,
+        visitDate: recordData.visitDate || new Date().toISOString()
+    };
+
+    if (!data.studentId) {
+        showError('Please select a valid student first');
+        return;
+    }
 
     try {
         const response = await fetch(url, {
@@ -425,7 +443,7 @@ async function handleRecordSave(e) {
                 'Content-Type': 'application/json',
                 'Authorization': `Bearer ${localStorage.getItem('token')}`
             },
-            body: JSON.stringify(recordData)
+            body: JSON.stringify(data)
         });
 
         const result = await response.json();
@@ -475,27 +493,49 @@ async function handleSettingsSave(e) {
 // Utility functions
 function showError(message) {
     const errorDiv = document.createElement('div');
-    errorDiv.className = 'error';
+    errorDiv.className = 'message error';
     errorDiv.textContent = message;
+    errorDiv.style.position = 'fixed';
+    errorDiv.style.top = '70px';
+    errorDiv.style.right = '20px';
+    errorDiv.style.zIndex = '9999';
+    errorDiv.style.padding = '15px 25px';
+    errorDiv.style.borderRadius = '8px';
+    errorDiv.style.backgroundColor = '#f8d7da';
+    errorDiv.style.color = '#721c24';
+    errorDiv.style.boxShadow = '0 4px 12px rgba(0,0,0,0.15)';
+    errorDiv.style.borderLeft = '5px solid #dc3545';
 
-    const container = document.querySelector('.container') || document.body;
-    container.insertBefore(errorDiv, container.firstChild);
+    document.body.appendChild(errorDiv);
 
     setTimeout(() => {
-        errorDiv.remove();
+        errorDiv.style.opacity = '0';
+        errorDiv.style.transition = 'opacity 0.5s ease';
+        setTimeout(() => errorDiv.remove(), 500);
     }, 5000);
 }
 
 function showSuccess(message) {
     const successDiv = document.createElement('div');
-    successDiv.className = 'success';
+    successDiv.className = 'message success';
     successDiv.textContent = message;
+    successDiv.style.position = 'fixed';
+    successDiv.style.top = '70px';
+    successDiv.style.right = '20px';
+    successDiv.style.zIndex = '9999';
+    successDiv.style.padding = '15px 25px';
+    successDiv.style.borderRadius = '8px';
+    successDiv.style.backgroundColor = '#d4edda';
+    successDiv.style.color = '#155724';
+    successDiv.style.boxShadow = '0 4px 12px rgba(0,0,0,0.15)';
+    successDiv.style.borderLeft = '5px solid #28a745';
 
-    const container = document.querySelector('.container') || document.body;
-    container.insertBefore(successDiv, container.firstChild);
+    document.body.appendChild(successDiv);
 
     setTimeout(() => {
-        successDiv.remove();
+        successDiv.style.opacity = '0';
+        successDiv.style.transition = 'opacity 0.5s ease';
+        setTimeout(() => successDiv.remove(), 500);
     }, 5000);
 }
 

@@ -166,13 +166,13 @@ router.put('/profile', authorizeRole(['student']), async (req, res) => {
     const updateStudentRequest = pool.request();
     await updateStudentRequest
       .input('phone', sql.VarChar, contactNumber)
-      .input('address', sql.Text, address || null)
+      .input('address', sql.NVarChar(sql.MAX), address || null)
       .input('emergency_contact', sql.VarChar, emergencyContact || null)
       .input('date_of_birth', sql.Date, dateOfBirth || null)
       .input('gender', sql.VarChar, gender || null)
       .input('blood_type', sql.VarChar, bloodType || null)
-      .input('allergies', sql.Text, allergies || null)
-      .input('medical_conditions', sql.Text, medicalConditions || null)
+      .input('allergies', sql.NVarChar(sql.MAX), allergies || null)
+      .input('medical_conditions', sql.NVarChar(sql.MAX), medicalConditions || null)
       .input('school_year', sql.VarChar, schoolYear || null)
       .input('school_level', sql.VarChar, schoolLevel || null)
       .input('department', sql.VarChar, department || null)
@@ -238,7 +238,8 @@ router.get('/bookings', authorizeRole(['student']), async (req, res) => {
       .input('limit', sql.Int, parseInt(limit))
       .input('offset', sql.Int, parseInt(offset))
       .query(`
-        SELECT b.*, n.name as nurse_name
+        SELECT b.*, n.name as nurse_name, 
+               FORMAT(b.appointment_date, 'yyyy-MM-ddTHH:mm:ss') as appointment_date_iso
         FROM appointments b
         JOIN nurses n ON b.nurse_id = n.id
         WHERE b.student_id = @student_id
@@ -246,8 +247,13 @@ router.get('/bookings', authorizeRole(['student']), async (req, res) => {
         OFFSET @offset ROWS FETCH NEXT @limit ROWS ONLY
       `);
 
+    const formattedAppointments = result.recordset.map(apt => ({
+        ...apt,
+        appointment_date: apt.appointment_date_iso // Use the formatted string to avoid timezone shifts
+    }));
+
     res.json({
-      appointments: result.recordset,
+      appointments: formattedAppointments,
       pagination: {
         total: total,
         limit: parseInt(limit),
@@ -285,7 +291,8 @@ router.get('/appointments/:id', authorizeRole(['student']), async (req, res) => 
       .input('appointment_id', sql.Int, appointmentId)
       .input('student_id', sql.Int, studentId)
       .query(`
-        SELECT a.*, n.name as nurse_name
+        SELECT a.*, n.name as nurse_name,
+               FORMAT(a.appointment_date, 'yyyy-MM-ddTHH:mm:ss') as appointment_date_iso
         FROM appointments a
         JOIN nurses n ON a.nurse_id = n.id
         WHERE a.id = @appointment_id AND a.student_id = @student_id
@@ -295,7 +302,10 @@ router.get('/appointments/:id', authorizeRole(['student']), async (req, res) => 
       return res.status(404).json({ message: 'Appointment not found' });
     }
 
-    res.json(result.recordset[0]);
+    const appointment = result.recordset[0];
+    appointment.appointment_date = appointment.appointment_date_iso || appointment.appointment_date;
+    
+    res.json(appointment);
   } catch (error) {
     console.error('Error fetching appointment:', error);
     res.status(500).json({ message: 'Error fetching appointment' });
@@ -649,8 +659,8 @@ router.get('/availability', authorizeRole(['student']), async (req, res) => {
           na.nurse_id,
           n.name as nurse_name,
           na.availability_date,
-          na.start_time,
-          na.end_time,
+          FORMAT(na.start_time, 'HH:mm:ss') as start_time,
+          FORMAT(na.end_time, 'HH:mm:ss') as end_time,
           na.max_patients,
           na.is_available,
           -- Count existing appointments for this nurse on this date within the time slot

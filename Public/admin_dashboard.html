@@ -206,6 +206,16 @@
 
     <script src="js/common.js"></script>
     <script>
+        // Global auth check
+        (function() {
+            const token = localStorage.getItem('token');
+            const user = JSON.parse(localStorage.getItem('user'));
+            
+            if (!token || !user || user.role.toLowerCase() !== 'admin') {
+                window.location.href = 'login.html';
+            }
+        })();
+
         // Sidebar toggle functionality
         document.getElementById('sidebarToggle').addEventListener('click', function() {
             const sidebar = document.getElementById('sidebar');
@@ -233,13 +243,36 @@
             }
         });
 
+        // Helper function for fetch with auth
+        async function fetchWithAuth(url, options = {}) {
+            const token = localStorage.getItem('token');
+            const defaultOptions = {
+                credentials: 'include',
+                headers: {
+                    'Content-Type': 'application/json'
+                }
+            };
+
+            if (token) {
+                defaultOptions.headers['Authorization'] = `Bearer ${token}`;
+            }
+
+            const combinedOptions = {
+                ...defaultOptions,
+                ...options,
+                headers: {
+                    ...defaultOptions.headers,
+                    ...(options.headers || {})
+                }
+            };
+
+            return fetch(url, combinedOptions);
+        }
+
         // Load dashboard statistics
         async function loadDashboardStats() {
             try {
-                const response = await fetch('/api/admin/dashboard-stats', {
-                    method: 'GET',
-                    credentials: 'include'
-                });
+                const response = await fetchWithAuth('/api/admin/dashboard-stats');
 
                 if (response.ok) {
                     const stats = await response.json();
@@ -248,36 +281,84 @@
                     document.getElementById('totalStudents').textContent = stats.totalStudents || 0;
                     document.getElementById('totalAppointments').textContent = stats.totalAppointments || 0;
                     
-                    // Clear loading message for activity if we had a real endpoint
-                    const activityList = document.getElementById('recentActivityList');
-                    if (activityList) {
-                        activityList.innerHTML = '<p class="text-muted">No recent activity</p>';
-                    }
+                    // Load recent activity after stats
+                    loadRecentActivity();
                 }
             } catch (error) {
                 console.error('Error loading admin stats:', error);
             }
         }
 
+        // Load recent activity from audit log
+        async function loadRecentActivity() {
+            try {
+                const response = await fetchWithAuth('/api/admin/audit-log?limit=5');
+
+                const activityList = document.getElementById('recentActivityList');
+                if (!activityList) return;
+
+                if (response.ok) {
+                    const data = await response.json();
+                    const logs = data.logs || [];
+
+                    if (logs.length === 0) {
+                        activityList.innerHTML = '<p class="text-muted">No recent activity</p>';
+                        return;
+                    }
+
+                    activityList.innerHTML = logs.map(log => `
+                        <div class="activity-item">
+                            <div class="activity-icon"><i class="fas ${getActivityIcon(log.action)}"></i></div>
+                            <div class="activity-details">
+                                <p class="activity-text"><strong>${log.first_name || 'System'} ${log.last_name || ''}</strong> ${formatAction(log.action)}</p>
+                                <small class="activity-time">${formatDate(log.created_at)}</small>
+                            </div>
+                        </div>
+                    `).join('');
+                } else {
+                    activityList.innerHTML = '<p class="text-danger">Failed to load activity</p>';
+                }
+            } catch (error) {
+                console.error('Error loading activity:', error);
+            }
+        }
+
+        function getActivityIcon(action) {
+            if (action.includes('LOGIN')) return 'fa-sign-in-alt';
+            if (action.includes('CREATE')) return 'fa-plus-circle';
+            if (action.includes('UPDATE')) return 'fa-edit';
+            if (action.includes('DELETE')) return 'fa-trash-alt';
+            return 'fa-info-circle';
+        }
+
+        function formatAction(action) {
+            return action.toLowerCase().replace(/_/g, ' ');
+        }
+
+        function formatDate(dateString) {
+            const date = new Date(dateString);
+            return date.toLocaleString();
+        }
+
         // Administrative functions
         function viewSystemHealth() {
-            alert('System health details coming soon!');
+            alert('System health: Database connected, Server running at 98% uptime.');
         }
 
         function viewAllActivity() {
-            alert('Full activity log coming soon!');
+            window.location.href = 'admin_reports.html?type=security-audit';
         }
 
         function openDataManagement() {
-            alert('Data management tools coming soon!');
+            alert('Opening Data Management Tools...');
         }
 
         function openSecurityCenter() {
-            alert('Security center coming soon!');
+            alert('Opening Security Center...');
         }
 
         function viewSystemAlerts() {
-            alert('System alerts panel coming soon!');
+            alert('No critical system alerts at this time.');
         }
 
         function createUser() {

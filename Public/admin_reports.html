@@ -288,29 +288,113 @@
             }
         });
 
+        // Helper function for fetch with auth
+        async function fetchWithAuth(url, options = {}) {
+            const token = localStorage.getItem('token');
+            const defaultOptions = {
+                credentials: 'include',
+                headers: {
+                    'Content-Type': 'application/json'
+                }
+            };
+
+            if (token) {
+                defaultOptions.headers['Authorization'] = `Bearer ${token}`;
+            }
+
+            const combinedOptions = {
+                ...defaultOptions,
+                ...options,
+                headers: {
+                    ...defaultOptions.headers,
+                    ...(options.headers || {})
+                }
+            };
+
+            return fetch(url, combinedOptions);
+        }
+
         // Report generation functions
-        function generateUserStats() {
-            showReport('User Statistics Report', 'Generating comprehensive user statistics report...');
+        async function generateUserStats() {
+            try {
+                const response = await fetchWithAuth('/api/admin/statistics');
+                const stats = await response.json();
+                
+                if (response.ok) {
+                    let content = '<h4>User Breakdown</h4><ul>';
+                    stats.userStats.forEach(s => {
+                        content += `<li>${s.role.charAt(0).toUpperCase() + s.role.slice(1)}: ${s.count}</li>`;
+                    });
+                    content += '</ul>';
+                    
+                    content += '<h4>Growth (Last 30 Days)</h4><ul>';
+                    content += `<li>New Students: ${stats.recentActivity.new_students}</li>`;
+                    content += `<li>New Nurses: ${stats.recentActivity.new_nurses}</li>`;
+                    content += '</ul>';
+                    
+                    showReport('User Statistics Report', content);
+                }
+            } catch (error) {
+                console.error('Error:', error);
+                showError('Failed to generate report');
+            }
         }
 
-        function generateAppointmentAnalytics() {
-            showReport('Appointment Analytics Report', 'Generating appointment trends and analytics report...');
+        async function generateAppointmentAnalytics() {
+            try {
+                const response = await fetchWithAuth('/api/reports/appointments');
+                const report = await response.json();
+                
+                if (response.ok) {
+                    let table = '<table class="report-table"><thead><tr><th>Date</th><th>Student</th><th>Nurse</th><th>Reason</th><th>Status</th></tr></thead><tbody>';
+                    report.data.forEach(row => {
+                        table += `<tr><td>${new Date(row.appointment_date).toLocaleDateString()}</td><td>${row.student_name}</td><td>${row.nurse_name}</td><td>${row.reason}</td><td>${row.status}</td></tr>`;
+                    });
+                    table += '</tbody></table>';
+                    showReport('Appointment Analytics Report', table);
+                }
+            } catch (error) {
+                console.error('Error:', error);
+                showError('Failed to generate report');
+            }
         }
 
-        function generateUsageReport() {
-            showReport('System Usage Report', 'Generating system usage statistics report...');
+        async function generateHealthSummary() {
+            try {
+                const response = await fetchWithAuth('/api/reports/medical-records');
+                const report = await response.json();
+                
+                if (response.ok) {
+                    let table = '<table class="report-table"><thead><tr><th>Date</th><th>Student</th><th>Record Type</th><th>Diagnosis</th></tr></thead><tbody>';
+                    report.data.forEach(row => {
+                        table += `<tr><td>${new Date(row.visit_date).toLocaleDateString()}</td><td>${row.student_name}</td><td>${row.record_type}</td><td>${row.diagnosis}</td></tr>`;
+                    });
+                    table += '</tbody></table>';
+                    showReport('Health Records Summary Report', table);
+                }
+            } catch (error) {
+                console.error('Error:', error);
+                showError('Failed to generate report');
+            }
         }
 
-        function generateHealthSummary() {
-            showReport('Health Records Summary Report', 'Generating health records summary report...');
-        }
-
-        function generatePerformanceReport() {
-            showReport('Performance Metrics Report', 'Generating system performance metrics report...');
-        }
-
-        function generateSecurityReport() {
-            showReport('Security Audit Report', 'Generating security audit and compliance report...');
+        async function generateSecurityReport() {
+            try {
+                const response = await fetchWithAuth('/api/admin/audit-log?limit=100');
+                const report = await response.json();
+                
+                if (response.ok) {
+                    let table = '<table class="report-table"><thead><tr><th>Time</th><th>User</th><th>Action</th><th>Table</th></tr></thead><tbody>';
+                    report.logs.forEach(row => {
+                        table += `<tr><td>${new Date(row.created_at).toLocaleString()}</td><td>${row.email || 'System'}</td><td>${row.action}</td><td>${row.table_name || 'N/A'}</td></tr>`;
+                    });
+                    table += '</tbody></table>';
+                    showReport('Security Audit Report', table);
+                }
+            } catch (error) {
+                console.error('Error:', error);
+                showError('Failed to generate report');
+            }
         }
 
         // Preview functions

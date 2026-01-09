@@ -72,6 +72,12 @@ app.use('/api/students', authenticateToken, studentRoutes);
 app.use('/api/medical-records', authenticateToken, medicalRecordsRoutes);
 app.use('/api/reports', authenticateToken, reportsRoutes);
 
+// 404 handler for API routes
+app.use('/api/*', (req, res) => {
+  console.log(`404 API Not Found: ${req.method} ${req.originalUrl}`);
+  res.status(404).json({ message: `API route not found: ${req.method} ${req.originalUrl}` });
+});
+
 // Serve static files
 app.get('/', (req, res) => {
   res.sendFile(path.join(__dirname, 'Public', 'index.html'));
@@ -90,8 +96,8 @@ const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
   console.log(`Server running on port at http://localhost:${PORT}`);
 
-  // Run scheduled tasks every hour
-  setInterval(runScheduledTasks, 60 * 60 * 1000); // 1 hour
+  // Run scheduled tasks every 5 minutes to handle auto-cancellation accurately
+  setInterval(runScheduledTasks, 5 * 60 * 1000); // 5 minutes
 
   // Run initial scheduled tasks
   runScheduledTasks();

@@ -1,8 +1,9 @@
 const express = require('express');
 const router = express.Router();
+console.log('Nurse routes loading...');
 const { poolPromise, sql } = require('../db');
 const { authorizeRole } = require('../middleware/auth');
-const { generateQRCode, validateQRCode, extractAppointmentIdFromQR } = require('../utils/qr');
+const { generateQRCode, validateQRCode, extractAppointmentIdFromQR, extractStudentIdFromQR } = require('../utils/qr');
 const { sendAppointmentStatusEmail } = require('../utils/mailer');
 
 // Helper function to get nurse ID from user ID
@@ -30,19 +31,18 @@ router.get('/students', authorizeRole(['nurse']), async (req, res) => {
     const pool = await poolPromise;
 
     let query = `
-      SELECT DISTINCT s.id, s.student_id, s.name, s.email, s.phone, s.department, s.school_year, s.school_level,
+      SELECT s.id, s.student_id, u.ctu_id, s.name, s.email, s.phone, s.department, s.school_year, s.school_level,
              s.date_of_birth, s.gender, s.blood_type, s.allergies, s.medical_conditions
       FROM students s
-      LEFT JOIN nurse_students ns ON s.id = ns.student_id
-      LEFT JOIN appointments a ON s.id = a.student_id
-      WHERE (ns.nurse_id = @nurse_id AND ns.is_active = 1) OR (a.nurse_id = @nurse_id)
+      JOIN users u ON s.user_id = u.id
+      WHERE 1=1
     `;
 
-    const request = pool.request().input('nurse_id', sql.Int, nurseId);
+    const request = pool.request();
 
     if (search) {
-      query += ' AND (s.name LIKE @search OR s.student_id LIKE @search OR s.email LIKE @search)';
-      request.input('search', sql.VarChar, `%${search}%`);
+      query += ' AND (s.name LIKE @search OR s.student_id LIKE @search OR u.ctu_id LIKE @search OR s.email LIKE @search)';
+      request.input('search', sql.NVarChar, `%${search}%`);
     }
 
     if (department) {
@@ -83,10 +83,15 @@ router.post('/students', authorizeRole(['nurse']), async (req, res) => {
 
     const pool = await poolPromise;
 
+    const parsedStudentId = parseInt(studentId);
+    if (isNaN(parsedStudentId)) {
+      return res.status(400).json({ message: 'Invalid Student ID format' });
+    }
+
     // Check if student exists
     const studentCheck = pool.request();
     const studentResult = await studentCheck
-      .input('student_id', sql.Int, studentId)
+      .input('student_id', sql.Int, parsedStudentId)
       .query('SELECT id FROM students WHERE id = @student_id');
 
     if (studentResult.recordset.length === 0) {
@@ -97,7 +102,7 @@ router.post('/students', authorizeRole(['nurse']), async (req, res) => {
     const existingCheck = pool.request();
     const existingResult = await existingCheck
       .input('nurse_id', sql.Int, nurseId)
-      .input('student_id', sql.Int, studentId)
+      .input('student_id', sql.Int, parsedStudentId)
       .query('SELECT id FROM nurse_students WHERE nurse_id = @nurse_id AND student_id = @student_id');
 
     if (existingResult.recordset.length > 0) {
@@ -107,13 +112,55 @@ router.post('/students', authorizeRole(['nurse']), async (req, res) => {
     const insertRequest = pool.request();
     await insertRequest
       .input('nurse_id', sql.Int, nurseId)
-      .input('student_id', sql.Int, studentId)
+      .input('student_id', sql.Int, parsedStudentId)
       .query('INSERT INTO nurse_students (nurse_id, student_id) VALUES (@nurse_id, @student_id)');
 
     res.status(201).json({ message: 'Student assigned successfully' });
   } catch (error) {
     console.error('Error assigning student:', error);
     res.status(500).json({ message: 'Error assigning student' });
+  }
+});
+
+// Get student details by ID or Student Number
+router.get('/students/:studentId', authorizeRole(['nurse']), async (req, res) => {
+  try {
+    const { studentId } = req.params;
+    const pool = await poolPromise;
+
+    const request = pool.request();
+    request.input('student_id_param', sql.NVarChar, studentId);
+    
+    // Search by:
+    // 1. Internal ID (if numeric)
+    // 2. student_id in students table
+    // 3. ctu_id in users table
+    let query = `
+      SELECT s.*, u.ctu_id, u.first_name, u.last_name, u.email as user_email 
+      FROM students s
+      JOIN users u ON s.user_id = u.id
+      WHERE s.student_id = @student_id_param OR u.ctu_id = @student_id_param
+    `;
+    
+    if (!isNaN(studentId) && studentId.trim() !== '') {
+      query = `
+        SELECT s.*, u.ctu_id, u.first_name, u.last_name, u.email as user_email 
+        FROM students s
+        JOIN users u ON s.user_id = u.id
+        WHERE s.id = @student_id_param OR s.student_id = @student_id_param OR u.ctu_id = @student_id_param
+      `;
+    }
+
+    const result = await request.query(query);
+
+    if (result.recordset.length === 0) {
+      return res.status(404).json({ message: 'Student not found' });
+    }
+
+    res.json(result.recordset[0]);
+  } catch (error) {
+    console.error('Error fetching student details:', error);
+    res.status(500).json({ message: 'Error fetching student details' });
   }
 });
 
@@ -139,25 +186,15 @@ router.put('/students/:studentId', authorizeRole(['nurse']), async (req, res) =>
 
     const pool = await poolPromise;
 
-    // Verify nurse has access to this student (assigned OR has appointment)
-    const accessCheck = pool.request();
-    const accessResult = await accessCheck
-      .input('nurse_id', sql.Int, nurseId)
-      .input('student_id', sql.Int, studentId)
-      .query(`
-        SELECT id FROM nurse_students WHERE nurse_id = @nurse_id AND student_id = @student_id AND is_active = 1
-        UNION
-        SELECT id FROM appointments WHERE nurse_id = @nurse_id AND student_id = @student_id
-      `);
-
-    if (accessResult.recordset.length === 0) {
-      return res.status(403).json({ message: 'Access denied to this student' });
+    const parsedStudentId = parseInt(studentId);
+    if (isNaN(parsedStudentId)) {
+      return res.status(400).json({ message: 'Invalid Student ID format' });
     }
 
     // Update student information
     const updateRequest = pool.request();
     await updateRequest
-      .input('student_id', sql.Int, studentId)
+      .input('student_id', sql.Int, parsedStudentId)
       .input('phone', sql.VarChar, phone || null)
       .input('address', sql.NVarChar, address || null)
       .input('emergency_contact', sql.VarChar, emergency_contact || null)
@@ -203,11 +240,16 @@ router.put('/students/:studentId/archive', authorizeRole(['nurse']), async (req,
 
     const pool = await poolPromise;
 
+    const parsedStudentId = parseInt(studentId);
+    if (isNaN(parsedStudentId)) {
+      return res.status(400).json({ message: 'Invalid Student ID format' });
+    }
+
     // Update the nurse-student assignment
     const updateRequest = pool.request();
     const result = await updateRequest
       .input('nurse_id', sql.Int, nurseId)
-      .input('student_id', sql.Int, studentId)
+      .input('student_id', sql.Int, parsedStudentId)
       .input('is_active', sql.Bit, is_active)
       .query(`
         UPDATE nurse_students
@@ -285,13 +327,13 @@ router.post('/reports', authorizeRole(['nurse']), async (req, res) => {
 
     const insertRequest = pool.request();
     const result = await insertRequest
-      .input('student_id', sql.Int, studentId)
+      .input('student_id', sql.Int, parseInt(studentId))
       .input('nurse_id', sql.Int, nurseId)
-      .input('report_type', sql.NVarChar, reportType)
-      .input('title', sql.NVarChar, title || 'Health Report')
-      .input('description', sql.NVarChar, description || null)
-      .input('findings', sql.NVarChar, findings || null)
-      .input('recommendations', sql.NVarChar, recommendations || null)
+      .input('report_type', sql.NVarChar(20), reportType)
+      .input('title', sql.NVarChar(255), title || 'Health Report')
+      .input('description', sql.NVarChar(sql.MAX), description || null)
+      .input('findings', sql.NVarChar(sql.MAX), findings || null)
+      .input('recommendations', sql.NVarChar(sql.MAX), recommendations || null)
       .input('is_confidential', sql.Bit, isConfidential ? 1 : 0)
       .query(`
         INSERT INTO reports (student_id, nurse_id, report_type, title, description, findings, recommendations, is_confidential)
@@ -611,7 +653,121 @@ router.delete('/availability/:id', authorizeRole(['nurse']), async (req, res) =>
   }
 });
 
-// Get nurse's appointments
+// Archive an appointment
+router.post('/appointments/:id/archive', authorizeRole(['nurse']), async (req, res) => {
+  console.log('POST /appointments/:id/archive hit with id:', req.params.id);
+  try {
+    const userId = req.user.id;
+    const appointmentId = req.params.id;
+
+    const nurseId = await getNurseId(userId);
+    const pool = await poolPromise;
+
+    // First, verify the appointment belongs to this nurse
+    const verifyResult = await pool.request()
+      .input('appointment_id', sql.Int, appointmentId)
+      .input('nurse_id', sql.Int, nurseId)
+      .query('SELECT notes FROM appointments WHERE id = @appointment_id AND nurse_id = @nurse_id');
+
+    if (verifyResult.recordset.length === 0) {
+      return res.status(404).json({ message: 'Appointment not found' });
+    }
+
+    const currentNotes = verifyResult.recordset[0].notes || '';
+    const archivedNotes = `[ARCHIVED] ${currentNotes}`.trim();
+
+    // Mark as archived in notes
+    await pool.request()
+      .input('appointment_id', sql.Int, appointmentId)
+      .input('notes', sql.NVarChar, archivedNotes)
+      .query('UPDATE appointments SET notes = @notes WHERE id = @appointment_id');
+
+    res.json({ message: 'Appointment archived successfully' });
+  } catch (error) {
+    console.error('Error archiving appointment:', error);
+    res.status(500).json({ message: 'Error archiving appointment' });
+  }
+});
+
+// Restore an archived appointment
+router.post('/appointments/:id/restore', authorizeRole(['nurse']), async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const appointmentId = req.params.id;
+
+    const nurseId = await getNurseId(userId);
+    const pool = await poolPromise;
+
+    // First, verify the appointment belongs to this nurse
+    const verifyResult = await pool.request()
+      .input('appointment_id', sql.Int, appointmentId)
+      .input('nurse_id', sql.Int, nurseId)
+      .query('SELECT notes FROM appointments WHERE id = @appointment_id AND nurse_id = @nurse_id');
+
+    if (verifyResult.recordset.length === 0) {
+      return res.status(404).json({ message: 'Appointment not found' });
+    }
+
+    const currentNotes = verifyResult.recordset[0].notes || '';
+    const restoredNotes = currentNotes.replace('[ARCHIVED]', '').trim();
+
+    // Mark as restored (remove prefix from notes)
+    await pool.request()
+      .input('appointment_id', sql.Int, appointmentId)
+      .input('notes', sql.NVarChar, restoredNotes || null)
+      .query('UPDATE appointments SET notes = @notes WHERE id = @appointment_id');
+
+    res.json({ message: 'Appointment restored successfully' });
+  } catch (error) {
+    console.error('Error restoring appointment:', error);
+    res.status(500).json({ message: 'Error restoring appointment' });
+  }
+});
+
+// Get archived appointments
+router.get('/appointments/archived', authorizeRole(['nurse']), async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const nurseId = await getNurseId(userId);
+    const pool = await poolPromise;
+
+    const query = `
+      SELECT
+        a.id,
+        a.student_id,
+        s.name as student_name,
+        s.student_id as student_number,
+        FORMAT(a.appointment_date, 'yyyy-MM-ddTHH:mm:ss') as appointment_date_iso,
+        a.reason,
+        a.status,
+        a.created_at,
+        a.notes,
+        mr.id as record_id
+      FROM appointments a
+      INNER JOIN students s ON a.student_id = s.id
+      LEFT JOIN medical_records mr ON a.id = mr.appointment_id
+      WHERE a.nurse_id = @nurse_id AND a.notes LIKE '[ARCHIVED]%'
+      ORDER BY a.appointment_date DESC
+    `;
+
+    const result = await pool.request()
+      .input('nurse_id', sql.Int, nurseId)
+      .query(query);
+
+    const formattedAppointments = result.recordset.map(apt => ({
+      ...apt,
+      appointment_date: apt.appointment_date_iso || apt.appointment_date,
+      notes: apt.notes.replace('[ARCHIVED]', '').trim()
+    }));
+
+    res.json(formattedAppointments);
+  } catch (error) {
+    console.error('Error fetching archived appointments:', error);
+    res.status(500).json({ message: 'Error fetching archived appointments' });
+  }
+});
+
+// Get nurse's appointments (excluding archived)
 router.get('/appointments', authorizeRole(['nurse']), async (req, res) => {
   try {
     const userId = req.user.id;
@@ -626,15 +782,17 @@ router.get('/appointments', authorizeRole(['nurse']), async (req, res) => {
         a.student_id,
         s.name as student_name,
         s.student_id as student_number,
-        a.appointment_date,
+        FORMAT(a.appointment_date, 'yyyy-MM-ddTHH:mm:ss') as appointment_date_iso,
         a.reason,
         a.status,
         a.created_at,
         a.notes,
-        a.qr_code
+        a.qr_code,
+        mr.id as record_id
       FROM appointments a
       INNER JOIN students s ON a.student_id = s.id
-      WHERE a.nurse_id = @nurse_id
+      LEFT JOIN medical_records mr ON a.id = mr.appointment_id
+      WHERE a.nurse_id = @nurse_id AND (a.notes IS NULL OR a.notes NOT LIKE '[ARCHIVED]%')
     `;
 
     const request = pool.request().input('nurse_id', sql.Int, nurseId);
@@ -652,7 +810,11 @@ router.get('/appointments', authorizeRole(['nurse']), async (req, res) => {
     query += ' ORDER BY a.appointment_date DESC';
 
     const result = await request.query(query);
-    res.json(result.recordset);
+    const formattedAppointments = result.recordset.map(apt => ({
+      ...apt,
+      appointment_date: apt.appointment_date_iso || apt.appointment_date
+    }));
+    res.json(formattedAppointments);
   } catch (error) {
     console.error('Error fetching appointments:', error);
     if (error.message === 'Nurse profile not found') {
@@ -1023,30 +1185,85 @@ router.post('/scan-appointment-qr', authorizeRole(['nurse']), async (req, res) =
     }
 
     // Extract appointment ID from QR code
-    const appointmentId = extractAppointmentIdFromQR(qrData);
+    let appointmentId = extractAppointmentIdFromQR(qrData);
+    let studentIdFromQR = null;
+
     if (!appointmentId) {
-      return res.status(400).json({ message: 'Invalid QR code format' });
+      studentIdFromQR = extractStudentIdFromQR(qrData);
+      if (!studentIdFromQR) {
+        return res.status(400).json({ message: 'Invalid QR code format' });
+      }
     }
 
     const pool = await poolPromise;
+    let appointment = null;
 
-    // Verify appointment belongs to this nurse and is valid for check-in
-    const appointmentRequest = pool.request();
-    const appointmentResult = await appointmentRequest
-      .input('appointment_id', sql.Int, appointmentId)
-      .input('nurse_id', sql.Int, nurseId)
-      .query(`
-        SELECT a.id, a.student_id, a.appointment_date, a.status, s.name as student_name, s.student_id as student_number
-        FROM appointments a
-        INNER JOIN students s ON a.student_id = s.id
-        WHERE a.id = @appointment_id AND a.nurse_id = @nurse_id
-      `);
+    if (appointmentId) {
+      // Verify appointment belongs to this nurse and is valid for check-in
+      const appointmentRequest = pool.request();
+      const appointmentResult = await appointmentRequest
+        .input('appointment_id', sql.Int, appointmentId)
+        .input('nurse_id', sql.Int, nurseId)
+        .query(`
+          SELECT a.id, a.student_id, a.appointment_date, a.status, s.name as student_name, s.student_id as student_number
+          FROM appointments a
+          INNER JOIN students s ON a.student_id = s.id
+          WHERE a.id = @appointment_id AND a.nurse_id = @nurse_id
+        `);
 
-    if (appointmentResult.recordset.length === 0) {
-      return res.status(404).json({ message: 'Appointment not found or not assigned to you' });
+      if (appointmentResult.recordset.length === 0) {
+        return res.status(404).json({ message: 'Appointment not found or not assigned to you' });
+      }
+      appointment = appointmentResult.recordset[0];
+    } else {
+      // Find today's pending/confirmed appointment for this student
+      const studentAppointmentRequest = pool.request();
+      const studentAppointmentResult = await studentAppointmentRequest
+        .input('student_number_qr', sql.NVarChar, studentIdFromQR)
+        .input('nurse_id', sql.Int, nurseId)
+        .input('today', sql.Date, new Date().toISOString().split('T')[0])
+        .query(`
+          SELECT TOP 1 a.id, a.student_id, a.appointment_date, a.status, s.name as student_name, s.student_id as student_number
+          FROM appointments a
+          INNER JOIN students s ON a.student_id = s.id
+          WHERE (s.student_id = @student_number_qr OR s.id = TRY_CAST(@student_number_qr AS INT))
+            AND a.nurse_id = @nurse_id
+            AND CAST(a.appointment_date AS DATE) = @today
+            AND a.status IN ('pending', 'confirmed')
+          ORDER BY a.appointment_date ASC
+        `);
+
+      if (studentAppointmentResult.recordset.length === 0) {
+        // Just return student info if no appointment today
+        const studentInfoRequest = pool.request();
+        const studentInfoResult = await studentInfoRequest
+          .input('student_id_qr', sql.NVarChar, studentIdFromQR)
+          .query(`
+            SELECT s.id, s.name as student_name, s.student_id as student_number
+            FROM students s
+            JOIN users u ON s.user_id = u.id
+            WHERE s.student_id = @student_id_qr OR s.id = TRY_CAST(@student_id_qr AS INT) OR u.ctu_id = @student_id_qr
+          `);
+
+        if (studentInfoResult.recordset.length === 0) {
+          return res.status(404).json({ message: 'Student not found' });
+        }
+
+        const student = studentInfoResult.recordset[0];
+        return res.json({
+          message: 'Student identified. No appointment found for today.',
+          needsCheckIn: false,
+          appointment: {
+            studentInternalId: student.id,
+            studentName: student.student_name,
+            studentId: student.student_number,
+            status: 'no_appointment'
+          }
+        });
+      }
+      appointment = studentAppointmentResult.recordset[0];
+      appointmentId = appointment.id;
     }
-
-    const appointment = appointmentResult.recordset[0];
 
     // Check if appointment is in valid status for check-in
     if (!['confirmed', 'pending'].includes(appointment.status)) {
@@ -1054,10 +1271,10 @@ router.post('/scan-appointment-qr', authorizeRole(['nurse']), async (req, res) =
     }
 
     // Check if appointment is today
-    const today = new Date().toISOString().split('T')[0];
-    const appointmentDate = new Date(appointment.appointment_date).toISOString().split('T')[0];
+    const todayStr = new Date().toISOString().split('T')[0];
+    const appointmentDateStr = new Date(appointment.appointment_date).toISOString().split('T')[0];
 
-    if (appointmentDate !== today) {
+    if (appointmentDateStr !== todayStr) {
       return res.status(400).json({ message: 'Appointment is not scheduled for today' });
     }
 
@@ -1067,12 +1284,13 @@ router.post('/scan-appointment-qr', authorizeRole(['nurse']), async (req, res) =
       .input('appointment_id', sql.Int, appointmentId)
       .query(`
         UPDATE appointments
-        SET check_in_time = GETDATE(), qr_check_in = 1, status = 'confirmed'
+        SET check_in_time = GETDATE(), qr_check_in = 1, status = 'confirmed', updated_at = GETDATE()
         WHERE id = @appointment_id
       `);
 
     res.json({
       message: 'Student checked in successfully',
+      needsCheckIn: true,
       appointment: {
         id: appointment.id,
         studentInternalId: appointment.student_id,

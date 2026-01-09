@@ -244,7 +244,17 @@ router.post('/login', async (req, res) => {
     const nameParts = [user.first_name, user.middle_name, user.last_name, user.extension_name].filter(Boolean);
     const fullName = nameParts.join(' ').trim();
 
-    res.json({ user: { id: user.id, name: fullName, email: user.email, role: user.role } });
+    // Generate JWT token
+    const token = jwt.sign(
+      { id: user.id, email: user.email, role: user.role },
+      process.env.JWT_SECRET || 'your-secret-key',
+      { expiresIn: '24h' }
+    );
+
+    res.json({ 
+      token,
+      user: { id: user.id, name: fullName, email: user.email, role: user.role } 
+    });
   } catch (error) {
     console.error('Error logging in:', error);
     res.status(500).json({ message: 'Error logging in' });

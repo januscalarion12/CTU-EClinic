@@ -126,6 +126,7 @@ router.post('/users', authorizeRole(['admin']), async (req, res) => {
       middleName,
       lastName,
       suffix,
+      extensionName,
       email,
       contactNumber,
       password,
@@ -138,6 +139,9 @@ router.post('/users', authorizeRole(['admin']), async (req, res) => {
       specialization,
       isEmailConfirmed = false
     } = req.body;
+
+    // Handle boolean conversion from string (form data)
+    const confirmed = isEmailConfirmed === '1' || isEmailConfirmed === 1 || isEmailConfirmed === true;
 
     const pool = await poolPromise;
 
@@ -153,12 +157,14 @@ router.post('/users', authorizeRole(['admin']), async (req, res) => {
     // Hash password
     const hashedPassword = await bcrypt.hash(password, 10);
 
-    // Determine ctu_id based on role
+    // Determine ctu_id based on role and ensure it's null if empty
     let ctuId = null;
     if (role === 'student') {
-      ctuId = idNumber;
+      ctuId = idNumber || null;
     } else if (role === 'nurse') {
-      ctuId = employeeId;
+      ctuId = employeeId || null;
+    } else if (role === 'admin') {
+      ctuId = idNumber || employeeId || null;
     }
 
     // Insert user
@@ -167,16 +173,16 @@ router.post('/users', authorizeRole(['admin']), async (req, res) => {
       .input('first_name', sql.VarChar, firstName)
       .input('middle_name', sql.VarChar, middleName || null)
       .input('last_name', sql.VarChar, lastName)
-      .input('extension_name', sql.VarChar, suffix || null)
+      .input('extension_name', sql.VarChar, suffix || extensionName || null)
       .input('email', sql.VarChar, email)
-      .input('contact_number', sql.VarChar, contactNumber)
+      .input('contact_number', sql.VarChar, contactNumber || null)
       .input('password_hash', sql.VarChar, hashedPassword)
       .input('role', sql.VarChar, role)
       .input('ctu_id', sql.VarChar, ctuId)
-      .input('school_year', sql.VarChar, role === 'student' ? schoolYear : null)
-      .input('school_level', sql.VarChar, role === 'student' ? schoolLevel : null)
-      .input('department', sql.VarChar, role === 'student' ? department : null)
-      .input('is_email_confirmed', sql.Bit, isEmailConfirmed)
+      .input('school_year', sql.VarChar, role === 'student' ? (schoolYear || null) : null)
+      .input('school_level', sql.VarChar, role === 'student' ? (schoolLevel || null) : null)
+      .input('department', sql.VarChar, department || null)
+      .input('is_email_confirmed', sql.Bit, confirmed)
       .query('INSERT INTO users (first_name, middle_name, last_name, extension_name, email, contact_number, password_hash, role, ctu_id, school_year, school_level, department, is_email_confirmed) VALUES (@first_name, @middle_name, @last_name, @extension_name, @email, @contact_number, @password_hash, @role, @ctu_id, @school_year, @school_level, @department, @is_email_confirmed); SELECT SCOPE_IDENTITY() AS id');
 
     const userId = insertUserResult.recordset[0].id;
@@ -214,21 +220,38 @@ router.post('/users', authorizeRole(['admin']), async (req, res) => {
 router.put('/users/:id', authorizeRole(['admin']), async (req, res) => {
   try {
     const userId = req.params.id;
-    const {
-      firstName,
-      middleName,
-      lastName,
-      suffix,
-      email,
-      contactNumber,
-      role,
-      schoolYear,
-      schoolLevel,
-      department,
-      isEmailConfirmed
-    } = req.body;
-
+    const updates = req.body;
+    
     const pool = await poolPromise;
+    
+    // First, get current user data to handle partial updates
+    const currentRequest = pool.request();
+    const currentResult = await currentRequest
+      .input('id', sql.Int, userId)
+      .query('SELECT * FROM users WHERE id = @id');
+    
+    if (currentResult.recordset.length === 0) {
+      return res.status(404).json({ message: 'User not found' });
+    }
+    
+    const currentUser = currentResult.recordset[0];
+    
+    // Merge updates with current data
+    const firstName = updates.firstName !== undefined ? updates.firstName : currentUser.first_name;
+    const middleName = updates.middle_name !== undefined ? updates.middle_name : (updates.middleName !== undefined ? updates.middleName : currentUser.middle_name);
+    const lastName = updates.lastName !== undefined ? updates.lastName : currentUser.last_name;
+    const extensionName = updates.extension_name !== undefined ? updates.extension_name : (updates.extensionName !== undefined ? updates.extensionName : currentUser.extension_name);
+    const email = updates.email !== undefined ? updates.email : currentUser.email;
+    const contactNumber = updates.contactNumber !== undefined ? updates.contactNumber : currentUser.contact_number;
+    const role = updates.role !== undefined ? updates.role : currentUser.role;
+    const schoolYear = updates.schoolYear !== undefined ? updates.schoolYear : currentUser.school_year;
+    const schoolLevel = updates.schoolLevel !== undefined ? updates.schoolLevel : currentUser.school_level;
+    const department = updates.department !== undefined ? updates.department : currentUser.department;
+    
+    let confirmed = currentUser.is_email_confirmed;
+    if (updates.isEmailConfirmed !== undefined) {
+      confirmed = updates.isEmailConfirmed === '1' || updates.isEmailConfirmed === 1 || updates.isEmailConfirmed === true;
+    }
 
     // Update users table
     const updateUserRequest = pool.request();
@@ -236,14 +259,14 @@ router.put('/users/:id', authorizeRole(['admin']), async (req, res) => {
       .input('first_name', sql.VarChar, firstName)
       .input('middle_name', sql.VarChar, middleName || null)
       .input('last_name', sql.VarChar, lastName)
-      .input('extension_name', sql.VarChar, suffix || null)
+      .input('extension_name', sql.VarChar, extensionName || null)
       .input('email', sql.VarChar, email)
-      .input('contact_number', sql.VarChar, contactNumber)
+      .input('contact_number', sql.VarChar, contactNumber || null)
       .input('role', sql.VarChar, role)
-      .input('school_year', sql.VarChar, role === 'student' ? schoolYear : null)
-      .input('school_level', sql.VarChar, role === 'student' ? schoolLevel : null)
-      .input('department', sql.VarChar, role === 'student' ? department : null)
-      .input('is_email_confirmed', sql.Bit, isEmailConfirmed)
+      .input('school_year', sql.VarChar, role === 'student' ? (schoolYear || null) : null)
+      .input('school_level', sql.VarChar, role === 'student' ? (schoolLevel || null) : null)
+      .input('department', sql.VarChar, department || null)
+      .input('is_email_confirmed', sql.Bit, confirmed)
       .input('id', sql.Int, userId)
       .query(`
         UPDATE users
@@ -524,6 +547,53 @@ router.put('/profile', authorizeRole(['admin']), async (req, res) => {
   } catch (error) {
     console.error('Error updating admin profile:', error);
     res.status(500).json({ message: 'Error updating admin profile' });
+  }
+});
+
+// Get system settings
+router.get('/settings', authorizeRole(['admin']), async (req, res) => {
+  try {
+    const pool = await poolPromise;
+    const result = await pool.request().query('SELECT * FROM system_settings');
+    
+    const settings = {};
+    result.recordset.forEach(row => {
+      settings[row.setting_key] = row.setting_value;
+    });
+    
+    res.json(settings);
+  } catch (error) {
+    console.error('Error fetching settings:', error);
+    res.status(500).json({ message: 'Error fetching settings' });
+  }
+});
+
+// Update system settings
+router.post('/settings', authorizeRole(['admin']), async (req, res) => {
+  try {
+    const settings = req.body;
+    const pool = await poolPromise;
+    
+    for (const key in settings) {
+      await pool.request()
+        .input('key', sql.NVarChar, key)
+        .input('value', sql.NVarChar, String(settings[key]))
+        .query(`
+          IF EXISTS (SELECT 1 FROM system_settings WHERE setting_key = @key)
+          BEGIN
+            UPDATE system_settings SET setting_value = @value, updated_at = GETDATE() WHERE setting_key = @key
+          END
+          ELSE
+          BEGIN
+            INSERT INTO system_settings (setting_key, setting_value) VALUES (@key, @value)
+          END
+        `);
+    }
+    
+    res.json({ message: 'Settings updated successfully' });
+  } catch (error) {
+    console.error('Error updating settings:', error);
+    res.status(500).json({ message: 'Error updating settings' });
   }
 });
 
