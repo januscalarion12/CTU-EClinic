@@ -93,7 +93,7 @@
                                 <input type="time" id="endTime" name="endTime" required>
                             </div>
                             <div class="form-group">
-                                <label for="maxPatients">Max Patients</label>
+                                <label for="maxPatients">Max Students</label>
                                 <input type="number" id="maxPatients" name="maxPatients" min="1" max="50" value="10" required>
                             </div>
                         </div>
@@ -259,7 +259,7 @@
             const slotsContainer = document.getElementById('availabilitySlots');
 
             if (slots.length === 0) {
-                slotsContainer.innerHTML = '<p>Accept availability slots found</p>';
+                slotsContainer.innerHTML = '<p>No availability slots found</p>';
                 return;
             }
 
@@ -267,7 +267,7 @@
                 <div class="availability-slot">
                     <div class="slot-date">${formatDate(slot.availability_date)}</div>
                     <div class="slot-time">${slot.start_time} - ${slot.end_time}</div>
-                    <div class="slot-capacity">Max: ${slot.max_patients} patients</div>
+                    <div class="slot-capacity">Max: ${slot.max_patients} students</div>
                     <div class="slot-actions">
                         <button class="btn-small" onclick="editSlot(${slot.id})">Edit</button>
                         <button class="btn-small btn-danger" onclick="deleteSlot(${slot.id})">Delete</button>

@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Archived Appointments - Clinic Management System</title>
+    <title>Archive - Clinic Management System</title>
     <link rel="stylesheet" href="css/style.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
 </head>
@@ -63,13 +63,13 @@
     <main class="main-content">
         <div class="dashboard">
             <div class="dashboard-header">
-                <h2>Archived Appointments</h2>
-                <p class="dashboard-subtitle">View previously archived/deleted appointment records</p>
+                <h2>Archive History</h2>
+                <p class="dashboard-subtitle">View previously archived/deleted records</p>
             </div>
 
             <div class="appointments-list">
                 <div class="table-header">
-                    <h3>Archive History</h3>
+                    <h3>Archived Appointments</h3>
                     <div class="table-actions">
                         <button class="btn-secondary" onclick="loadArchivedAppointments()">Refresh</button>
                     </div>
@@ -87,6 +87,30 @@
                     </thead>
                     <tbody>
                         <!-- Archived appointments will be loaded here -->
+                    </tbody>
+                </table>
+            </div>
+
+            <div class="appointments-list" style="margin-top: 2rem;">
+                <div class="table-header">
+                    <h3>Archived Medical Records</h3>
+                    <div class="table-actions">
+                        <button class="btn-secondary" onclick="loadArchivedRecords()">Refresh</button>
+                    </div>
+                </div>
+                <table id="archivedRecordsTable">
+                    <thead>
+                        <tr>
+                            <th>Student</th>
+                            <th>Visit Date</th>
+                            <th>Type</th>
+                            <th>Diagnosis</th>
+                            <th>Notes</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <!-- Archived records will be loaded here -->
                     </tbody>
                 </table>
             </div>
@@ -148,7 +172,7 @@
 
             tableBody.innerHTML = appointments.map(apt => `
                 <tr>
-                    <td>${apt.student_name} (${apt.student_number})</td>
+                    <td>${apt.student_name || 'Unknown Student'} (${apt.student_number || 'N/A'})</td>
                     <td>${new Date(apt.appointment_date).toLocaleDateString()}</td>
                     <td>${new Date(apt.appointment_date).toLocaleTimeString('en-US', {
                         hour: 'numeric',
@@ -188,7 +212,78 @@
             }
         }
 
-        document.addEventListener('DOMContentLoaded', loadArchivedAppointments);
+        async function loadArchivedRecords() {
+            const tableBody = document.querySelector('#archivedRecordsTable tbody');
+            tableBody.innerHTML = '<tr><td colspan="6">Loading...</td></tr>';
+
+            try {
+                const response = await fetch('/api/medical-records/archived/all', {
+                    method: 'GET',
+                    credentials: 'include'
+                });
+
+                if (response.ok) {
+                    const records = await response.json();
+                    displayArchivedRecords(records);
+                } else {
+                    tableBody.innerHTML = '<tr><td colspan="6">Error loading archive</td></tr>';
+                }
+            } catch (error) {
+                console.error('Error:', error);
+                tableBody.innerHTML = '<tr><td colspan="6">Error loading archive</td></tr>';
+            }
+        }
+
+        function displayArchivedRecords(records) {
+            const tableBody = document.querySelector('#archivedRecordsTable tbody');
+
+            if (records.length === 0) {
+                tableBody.innerHTML = '<tr><td colspan="6">No archived medical records found</td></tr>';
+                return;
+            }
+
+            tableBody.innerHTML = records.map(record => `
+                <tr>
+                    <td>${record.student_name || 'Unknown Student'} (${record.student_id_number || 'N/A'})</td>
+                    <td>${new Date(record.visit_date).toLocaleDateString()}</td>
+                    <td><span class="type-badge">${record.record_type}</span></td>
+                    <td>${record.diagnosis || 'No diagnosis'}</td>
+                    <td>${record.notes || '-'}</td>
+                    <td>
+                        <button class="btn-small btn-secondary" onclick="restoreRecord(${record.id})">Restore</button>
+                    </td>
+                </tr>
+            `).join('');
+        }
+
+        async function restoreRecord(recordId) {
+            if (!confirm('Are you sure you want to restore this medical record?')) {
+                return;
+            }
+
+            try {
+                const response = await fetch(`/api/medical-records/${recordId}/restore`, {
+                    method: 'POST',
+                    credentials: 'include'
+                });
+
+                if (response.ok) {
+                    alert('Medical record restored successfully!');
+                    loadArchivedRecords();
+                } else {
+                    const error = await response.json();
+                    alert('Error restoring: ' + error.message);
+                }
+            } catch (error) {
+                console.error('Error:', error);
+                alert('Error restoring medical record');
+            }
+        }
+
+        document.addEventListener('DOMContentLoaded', () => {
+            loadArchivedAppointments();
+            loadArchivedRecords();
+        });
     </script>
 </body>
 </html>

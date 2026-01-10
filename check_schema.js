@@ -27,6 +27,14 @@ async function run() {
         let availability = await pool.request().query("SELECT COLUMN_NAME, DATA_TYPE FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = 'nurse_availability'");
         console.log(JSON.stringify(availability.recordset, null, 2));
 
+        console.log('--- Medical Records Columns ---');
+        let records = await pool.request().query("SELECT COLUMN_NAME, DATA_TYPE FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = 'medical_records'");
+        console.log(JSON.stringify(records.recordset, null, 2));
+
+        console.log('--- Nurses Columns ---');
+        let nurses = await pool.request().query("SELECT COLUMN_NAME, DATA_TYPE FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = 'nurses'");
+        console.log(JSON.stringify(nurses.recordset, null, 2));
+
         process.exit(0);
     } catch (err) {
         console.error(err);

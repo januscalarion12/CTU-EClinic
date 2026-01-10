@@ -90,8 +90,8 @@
                 </div>
                 <div class="dashboard-card">
                     <div class="card-icon"><i class="fas fa-users"></i></div>
-                    <h3>Total Patients</h3>
-                    <p id="totalPatients">0</p>
+                    <h3>Total Students</h3>
+                    <p id="totalStudents">0</p>
                     <small>Students served</small>
                 </div>
                 <div class="dashboard-card">
@@ -162,7 +162,7 @@
                         </div>
                         <div class="form-group">
                             <label for="bio">Professional Bio</label>
-                            <textarea id="bio" name="bio" rows="4" placeholder="Brief description of your experience and approach to patient care"></textarea>
+                            <textarea id="bio" name="bio" rows="4" placeholder="Brief description of your experience and approach to student care"></textarea>
                         </div>
                         <div class="form-actions">
                             <button type="submit" class="btn-primary">Update Profile</button>
@@ -316,7 +316,7 @@
                 if (response.ok) {
                     const stats = await response.json();
                     document.getElementById('todayAppointments').textContent = stats.todayAppointments || '0';
-                    document.getElementById('totalPatients').textContent = stats.totalStudents || '0';
+                    document.getElementById('totalStudents').textContent = stats.totalStudents || '0';
                 }
             } catch (error) {
                 console.error('Error loading stats:', error);

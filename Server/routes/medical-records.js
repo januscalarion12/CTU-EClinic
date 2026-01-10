@@ -33,13 +33,18 @@ router.get('/student/:studentId', authorizeRole(['nurse']), async (req, res) => 
       .input('student_id', sql.Int, studentId)
       .query(`
         SELECT mr.*, n.name as nurse_name, 
+               ISNULL(NULLIF(LTRIM(RTRIM(s.name)), ''), 
+                      ISNULL(NULLIF(LTRIM(RTRIM(ISNULL(u.first_name, '') + ' ' + ISNULL(u.last_name, ''))), ''), s.student_id)) as student_name,
+               s.student_id as student_id_number,
                FORMAT(a.appointment_date, 'yyyy-MM-ddTHH:mm:ss') as appointment_date_iso,
                FORMAT(mr.visit_date, 'yyyy-MM-ddTHH:mm:ss') as visit_date_iso,
                a.reason as appointment_reason
         FROM medical_records mr
         JOIN nurses n ON mr.nurse_id = n.id
+        JOIN students s ON mr.student_id = s.id
+        LEFT JOIN users u ON s.user_id = u.id
         LEFT JOIN appointments a ON mr.appointment_id = a.id
-        WHERE mr.student_id = @student_id
+        WHERE mr.student_id = @student_id AND (mr.notes IS NULL OR mr.notes NOT LIKE '[ARCHIVED]%')
         ORDER BY mr.visit_date DESC, mr.created_at DESC
       `);
 
@@ -249,12 +254,21 @@ router.delete('/:id', authorizeRole(['nurse']), async (req, res) => {
       return res.status(403).json({ message: 'Access denied to this medical record' });
     }
 
-    const deleteRequest = pool.request();
-    await deleteRequest
+    const archiveRequest = pool.request();
+    await archiveRequest
       .input('record_id', sql.Int, recordId)
-      .query('DELETE FROM medical_records WHERE id = @record_id');
+      .query(`
+        UPDATE medical_records 
+        SET notes = CASE 
+            WHEN notes IS NULL THEN '[ARCHIVED]' 
+            WHEN notes LIKE '[ARCHIVED]%' THEN notes 
+            ELSE '[ARCHIVED] ' + CAST(notes AS NVARCHAR(MAX)) 
+        END,
+        updated_at = GETDATE()
+        WHERE id = @record_id
+      `);
 
-    res.json({ message: 'Medical record deleted successfully' });
+    res.json({ message: 'Medical record archived successfully' });
   } catch (error) {
     console.error('Error deleting medical record:', error);
     if (error.message === 'Nurse profile not found') {
@@ -277,12 +291,16 @@ router.get('/:id', authorizeRole(['nurse']), async (req, res) => {
       .input('record_id', sql.Int, recordId)
       .input('nurse_id', sql.Int, nurseId)
       .query(`
-        SELECT mr.*, n.name as nurse_name, s.name as student_name, 
+        SELECT mr.*, n.name as nurse_name, 
+               ISNULL(NULLIF(LTRIM(RTRIM(s.name)), ''), 
+                      ISNULL(NULLIF(LTRIM(RTRIM(ISNULL(u.first_name, '') + ' ' + ISNULL(u.last_name, ''))), ''), s.student_id)) as student_name, 
+               s.student_id as student_id_number,
                FORMAT(a.appointment_date, 'yyyy-MM-ddTHH:mm:ss') as appointment_date_iso,
                FORMAT(mr.visit_date, 'yyyy-MM-ddTHH:mm:ss') as visit_date_iso
         FROM medical_records mr
         JOIN nurses n ON mr.nurse_id = n.id
         JOIN students s ON mr.student_id = s.id
+        LEFT JOIN users u ON s.user_id = u.id
         LEFT JOIN appointments a ON mr.appointment_id = a.id
         WHERE mr.id = @record_id AND mr.nurse_id = @nurse_id
       `);
@@ -302,6 +320,117 @@ router.get('/:id', authorizeRole(['nurse']), async (req, res) => {
       return res.status(404).json({ message: error.message });
     }
     res.status(500).json({ message: 'Error fetching medical record' });
+  }
+});
+
+// Get recent medical records activity
+router.get('/recent', authorizeRole(['nurse']), async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const nurseId = await getNurseId(userId);
+    const pool = await poolPromise;
+
+    const request = pool.request();
+    const result = await request
+      .input('nurse_id', sql.Int, nurseId)
+      .query(`
+        SELECT TOP 10 mr.*, 
+               ISNULL(NULLIF(LTRIM(RTRIM(s.name)), ''), 
+                      ISNULL(NULLIF(LTRIM(RTRIM(ISNULL(u.first_name, '') + ' ' + ISNULL(u.last_name, ''))), ''), s.student_id)) as student_name,
+               s.student_id as student_id_number,
+               n.name as nurse_name
+        FROM medical_records mr
+        JOIN students s ON mr.student_id = s.id
+        LEFT JOIN users u ON s.user_id = u.id
+        JOIN nurses n ON mr.nurse_id = n.id
+        WHERE mr.nurse_id = @nurse_id AND (mr.notes IS NULL OR mr.notes NOT LIKE '[ARCHIVED]%')
+        ORDER BY mr.created_at DESC
+      `);
+
+    res.json(result.recordset);
+  } catch (error) {
+    console.error('Error fetching recent activity:', error);
+    res.status(500).json({ message: 'Error fetching recent activity' });
+  }
+});
+
+// Get archived medical records
+router.get('/archived/all', authorizeRole(['nurse']), async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const nurseId = await getNurseId(userId);
+    const pool = await poolPromise;
+
+    const request = pool.request();
+    const result = await request
+      .input('nurse_id', sql.Int, nurseId)
+      .query(`
+        SELECT mr.*, 
+               ISNULL(NULLIF(LTRIM(RTRIM(s.name)), ''), 
+                      ISNULL(NULLIF(LTRIM(RTRIM(ISNULL(u.first_name, '') + ' ' + ISNULL(u.last_name, ''))), ''), s.student_id)) as student_name,
+               s.student_id as student_id_number,
+               n.name as nurse_name,
+               FORMAT(mr.visit_date, 'yyyy-MM-ddTHH:mm:ss') as visit_date_iso
+        FROM medical_records mr
+        JOIN students s ON mr.student_id = s.id
+        LEFT JOIN users u ON s.user_id = u.id
+        JOIN nurses n ON mr.nurse_id = n.id
+        WHERE mr.nurse_id = @nurse_id AND mr.notes LIKE '[ARCHIVED]%'
+        ORDER BY mr.updated_at DESC
+      `);
+
+    const formattedRecords = result.recordset.map(record => ({
+      ...record,
+      visit_date: record.visit_date_iso || record.visit_date,
+      notes: (record.notes || '').replace('[ARCHIVED]', '').trim()
+    }));
+
+    res.json(formattedRecords);
+  } catch (error) {
+    console.error('Error fetching archived medical records:', error);
+    res.status(500).json({ message: 'Error fetching archived medical records' });
+  }
+});
+
+// Restore medical record
+router.post('/:id/restore', authorizeRole(['nurse']), async (req, res) => {
+  try {
+    const recordId = req.params.id;
+    const userId = req.user.id;
+    const nurseId = await getNurseId(userId);
+    const pool = await poolPromise;
+
+    // Verify the record belongs to this nurse
+    const verifyRequest = pool.request();
+    const verifyResult = await verifyRequest
+      .input('record_id', sql.Int, recordId)
+      .input('nurse_id', sql.Int, nurseId)
+      .query('SELECT id, notes FROM medical_records WHERE id = @record_id AND nurse_id = @nurse_id');
+
+    if (verifyResult.recordset.length === 0) {
+      return res.status(403).json({ message: 'Access denied to this medical record' });
+    }
+
+    const record = verifyResult.recordset[0];
+    let newNotes = record.notes || '';
+    if (newNotes.startsWith('[ARCHIVED]')) {
+      newNotes = newNotes.replace('[ARCHIVED]', '').trim();
+    }
+
+    const restoreRequest = pool.request();
+    await restoreRequest
+      .input('record_id', sql.Int, recordId)
+      .input('notes', sql.NVarChar, newNotes || null)
+      .query(`
+        UPDATE medical_records 
+        SET notes = @notes, updated_at = GETDATE()
+        WHERE id = @record_id
+      `);
+
+    res.json({ message: 'Medical record restored successfully' });
+  } catch (error) {
+    console.error('Error restoring medical record:', error);
+    res.status(500).json({ message: 'Error restoring medical record' });
   }
 });
 

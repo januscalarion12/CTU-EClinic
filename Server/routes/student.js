@@ -659,8 +659,8 @@ router.get('/availability', authorizeRole(['student']), async (req, res) => {
           na.nurse_id,
           n.name as nurse_name,
           na.availability_date,
-          FORMAT(na.start_time, 'HH:mm:ss') as start_time,
-          FORMAT(na.end_time, 'HH:mm:ss') as end_time,
+          CONVERT(VARCHAR(8), na.start_time, 108) as start_time,
+          CONVERT(VARCHAR(8), na.end_time, 108) as end_time,
           na.max_patients,
           na.is_available,
           -- Count existing appointments for this nurse on this date within the time slot

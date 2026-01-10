@@ -66,6 +66,7 @@ function initializeNavigation() {
 
 // Form initialization
 function initializeForms() {
+    const currentPage = window.location.pathname.split('/').pop();
     // Login form
     const loginForm = document.getElementById('loginForm');
     if (loginForm) {
@@ -80,14 +81,14 @@ function initializeForms() {
 
     // Profile form
     const profileForm = document.getElementById('profileForm');
-    if (profileForm) {
+    if (profileForm && currentPage !== 'profile.html' && currentPage !== 'nurse_profile.html') {
         profileForm.addEventListener('submit', handleProfileUpdate);
         loadProfile();
     }
 
     // Appointment form
     const appointmentForm = document.getElementById('appointmentForm');
-    if (appointmentForm) {
+    if (appointmentForm && currentPage !== 'book_appointment.html') {
         appointmentForm.addEventListener('submit', handleAppointmentBooking);
     }
 
@@ -99,7 +100,7 @@ function initializeForms() {
 
     // Record form
     const recordForm = document.getElementById('addRecordForm');
-    if (recordForm) {
+    if (recordForm && currentPage !== 'nurse_records.html') {
         recordForm.addEventListener('submit', handleRecordSave);
     }
 

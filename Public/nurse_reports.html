@@ -83,7 +83,7 @@
                     <div class="stat-icon"><i class="fas fa-users"></i></div>
                     <div class="stat-content">
                         <h3>Total Students</h3>
-                        <p id="activePatients">0</p>
+                        <p id="activeStudents">0</p>
                     </div>
                 </div>
                 <div class="stat-card">
@@ -107,7 +107,7 @@
                 <div class="report-card">
                     <div class="card-icon"><i class="fas fa-calendar-day"></i></div>
                     <h3>Daily Appointments</h3>
-                    <p>View detailed appointments for today with patient information and status</p>
+                    <p>View detailed appointments for today with student information and status</p>
                     <div class="report-actions">
                         <button class="btn-primary" onclick="generateDailyReport()">Generate Report</button>
                         <button class="btn-secondary" onclick="previewDailyReport()">Preview</button>
@@ -134,7 +134,7 @@
                 <div class="report-card">
                     <div class="card-icon"><i class="fas fa-chart-line"></i></div>
                     <h3>Performance Metrics</h3>
-                    <p>Clinic performance indicators including wait times and patient satisfaction</p>
+                    <p>Clinic performance indicators including wait times and student satisfaction</p>
                     <div class="report-actions">
                         <button class="btn-primary" onclick="generatePerformanceReport()">Generate Report</button>
                         <button class="btn-secondary" onclick="previewPerformanceReport()">Preview</button>
@@ -174,7 +174,7 @@
                                 <option value="">Select Report Type</option>
                                 <option value="appointments">Appointments</option>
                                 <option value="records">Medical Records</option>
-                                <option value="patients">Patient Demographics</option>
+                                <option value="patients">Student Demographics</option>
                                 <option value="performance">Performance Metrics</option>
                             </select>
                         </div>
@@ -267,7 +267,7 @@
                 if (response.ok) {
                     const stats = await response.json();
                     document.getElementById('weeklyAppointments').textContent = stats.weeklyAppointments || '0';
-                    document.getElementById('activePatients').textContent = stats.totalStudents || '0';
+                    document.getElementById('activeStudents').textContent = stats.totalStudents || '0';
                     document.getElementById('completionRate').textContent = (stats.monthlyTrend || 0) + '%';
                 }
             } catch (error) {

@@ -23,11 +23,6 @@
             padding: 12px 15px;
             border-bottom: 1px solid #eee;
         }
-        .data-table th {
-            background-color: #f8f9fa;
-            color: #333;
-            font-weight: 600;
-        }
         .data-table tr:hover {
             background-color: #f1f4f8;
         }
@@ -128,7 +123,7 @@
         <div class="dashboard">
             <div class="dashboard-header">
                 <h2>Medical Records Management</h2>
-                <p class="dashboard-subtitle">Access and manage patient medical records and health information</p>
+                <p class="dashboard-subtitle">Access and manage student medical records and health information</p>
             </div>
 
             <!-- Quick Actions -->
@@ -136,7 +131,7 @@
                 <div class="dashboard-card">
                     <div class="card-icon"><i class="fas fa-plus-circle"></i></div>
                     <h3>Add New Record</h3>
-                    <p>Create a new medical record for a patient</p>
+                    <p>Create a new medical record for a student</p>
                     <button class="btn-primary" onclick="showAddRecordForm()">Add Record</button>
                 </div>
                 <div class="dashboard-card">
@@ -164,7 +159,7 @@
                 <div class="search-row">
                     <div class="search-input-group">
                         <i class="fas fa-search search-icon"></i>
-                        <input type="text" id="searchStudent" placeholder="Search by student name, ID, or condition...">
+                        <input type="text" id="searchStudent" class="search-input" placeholder="Search by student name, ID, or condition...">
                     </div>
                     <div class="filter-group">
                         <select id="recordTypeFilter" class="filter-select">
@@ -191,7 +186,7 @@
             <!-- Records List -->
             <div class="records-list">
                 <div class="list-header">
-                    <h3>Patient Records</h3>
+                    <h3>Student Records</h3>
                     <div class="list-stats">
                         <span id="totalRecords">0</span> records found
                     </div>
@@ -220,7 +215,7 @@
                 <div class="form-card">
                     <div class="form-header">
                         <h3 id="formTitle">Add New Medical Record</h3>
-                        <p>Enter patient information and medical details</p>
+                        <p>Enter student information and medical details</p>
                     </div>
                     <form id="addRecordForm">
                         <input type="hidden" id="recordId" name="recordId">
@@ -291,6 +286,36 @@
             </div>
         </div>
     </main>
+
+    <!-- Recent Activity Modal -->
+    <div id="activityModal" class="modal" style="display: none;">
+        <div class="modal-content large-modal">
+            <div class="modal-header">
+                <h3>Recent Medical Record Activity</h3>
+                <button class="btn-close" onclick="document.getElementById('activityModal').style.display='none'">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            <div class="modal-body">
+                <div class="table-container">
+                    <table class="data-table">
+                        <thead>
+                            <tr>
+                                <th>Date/Time</th>
+                                <th>Student</th>
+                                <th>Type</th>
+                                <th>Diagnosis</th>
+                                <th>Action</th>
+                            </tr>
+                        </thead>
+                        <tbody id="activityContainer">
+                            <!-- Recent activity will be loaded here -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
 
     <footer>
         <p>&copy; <span id="currentYear"></span> Clinic Management System. All rights reserved.</p>
@@ -370,7 +395,12 @@
                 
                 // Trigger student info fetch if not already populated
                 if (!document.getElementById('internalStudentId').value) {
-                    fetchStudentInfo(studentIdFromUrl);
+                    const appointmentIdFromUrl = urlParams.get('appointmentId');
+                    if (appointmentIdFromUrl) {
+                        fetchAppointmentInfo(appointmentIdFromUrl);
+                    } else {
+                        fetchStudentInfo(studentIdFromUrl);
+                    }
                 }
             }
         }
@@ -388,18 +418,125 @@
         }
 
         function clearFilters() {
-            document.getElementById('searchStudent').value = '';
+            const searchInput = document.getElementById('searchStudent');
+            searchInput.value = '';
+            searchInput.style.paddingLeft = '40px';
+            document.querySelector('.search-icon').style.display = 'block';
             document.getElementById('recordTypeFilter').value = '';
             document.getElementById('dateFilter').value = '';
             loadRecords();
         }
 
-        function exportRecords() {
-            alert('Export functionality coming soon!');
+        async function exportRecords() {
+            try {
+                const search = document.getElementById('searchStudent').value;
+                const recordType = document.getElementById('recordTypeFilter').value;
+                const dateRange = document.getElementById('dateFilter').value;
+
+                let url = '/api/reports/medical-records?';
+                const params = new URLSearchParams();
+                if (recordType) params.append('recordType', recordType);
+                if (dateRange) {
+                    const today = new Date();
+                    let startDate = new Date();
+                    if (dateRange === 'today') startDate = today;
+                    else if (dateRange === 'week') startDate.setDate(today.getDate() - 7);
+                    else if (dateRange === 'month') startDate.setMonth(today.getMonth() - 1);
+                    else if (dateRange === 'year') startDate.setFullYear(today.getFullYear() - 1);
+                    
+                    params.append('startDate', startDate.toISOString().split('T')[0]);
+                    params.append('endDate', today.toISOString().split('T')[0]);
+                }
+
+                const response = await fetch(url + params.toString(), {
+                    headers: {
+                        'Authorization': `Bearer ${localStorage.getItem('token')}`
+                    }
+                });
+
+                if (response.ok) {
+                    const result = await response.json();
+                    const records = result.data;
+
+                    if (records.length === 0) {
+                        alert('No records found to export with current filters.');
+                        return;
+                    }
+
+                    // Convert to CSV
+                    const headers = ['Date', 'Student Name', 'Student ID', 'Type', 'Symptoms', 'Diagnosis', 'Treatment', 'Medications', 'Notes'];
+                    const csvContent = [
+                        headers.join(','),
+                        ...records.map(r => [
+                            new Date(r.visit_date).toLocaleDateString(),
+                            `"${r.student_name || ''}"`,
+                            `"${r.student_id || ''}"`,
+                            r.record_type,
+                            `"${(r.symptoms || '').replace(/"/g, '""')}"`,
+                            `"${(r.diagnosis || '').replace(/"/g, '""')}"`,
+                            `"${(r.treatment || '').replace(/"/g, '""')}"`,
+                            `"${(r.medications || '').replace(/"/g, '""')}"`,
+                            `"${(r.notes || '').replace(/"/g, '""')}"`
+                        ].join(','))
+                    ].join('\n');
+
+                    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+                    const link = document.createElement('a');
+                    const url = URL.createObjectURL(blob);
+                    link.setAttribute('href', url);
+                    link.setAttribute('download', `medical_records_export_${new Date().toISOString().split('T')[0]}.csv`);
+                    link.style.visibility = 'hidden';
+                    document.body.appendChild(link);
+                    link.click();
+                    document.body.removeChild(link);
+                } else {
+                    alert('Error generating export data');
+                }
+            } catch (error) {
+                console.error('Export error:', error);
+                alert('Error during export');
+            }
         }
 
-        function showRecentActivity() {
-            alert('Recent activity view coming soon!');
+        async function showRecentActivity() {
+            const container = document.getElementById('activityContainer');
+            const modal = document.getElementById('activityModal');
+            
+            container.innerHTML = '<tr><td colspan="5" class="text-center">Loading activity...</td></tr>';
+            modal.style.display = 'block';
+
+            try {
+                const response = await fetch('/api/medical-records/recent', {
+                    headers: {
+                        'Authorization': `Bearer ${localStorage.getItem('token')}`
+                    }
+                });
+
+                if (response.ok) {
+                    const activity = await response.json();
+                    if (activity.length === 0) {
+                        container.innerHTML = '<tr><td colspan="5" class="text-center">No recent activity found.</td></tr>';
+                        return;
+                    }
+
+                    container.innerHTML = activity.map(act => `
+                        <tr>
+                            <td>${new Date(act.created_at).toLocaleString()}</td>
+                            <td>${act.student_name || 'Unknown Student'} (${act.student_id_number || 'N/A'})</td>
+                            <td><span class="record-type-badge type-${act.record_type}">${act.record_type}</span></td>
+                            <td class="truncate-cell">${act.diagnosis || 'N/A'}</td>
+                            <td>
+                                <button class="btn-small btn-primary" onclick="viewRecordDetails(${act.id})">View</button>
+                            </td>
+                        </tr>
+                    `).join('');
+                } else {
+                    container.innerHTML = '<tr><td colspan="5" class="text-center">Error loading activity.</td></tr>';
+                }
+            } catch (error) {
+                console.error('Activity error:', error);
+                container.innerHTML = '<tr><td colspan="5" class="text-center">Error loading activity.</td></tr>';
+            }
         }
 
         // Load records
@@ -465,7 +602,7 @@
             container.innerHTML = records.map(record => `
                 <tr>
                     <td>${new Date(record.visit_date).toLocaleDateString()}</td>
-                    <td>${record.student_name || 'Patient'}</td>
+                    <td>${record.student_name || 'Unknown Student'} (${record.student_id_number || 'N/A'})</td>
                     <td><span class="record-type-badge type-${record.record_type}">${record.record_type}</span></td>
                     <td class="truncate-cell" title="${record.diagnosis || 'N/A'}">${record.diagnosis || 'N/A'}</td>
                     <td class="truncate-cell" title="${record.treatment || 'N/A'}">${record.treatment || 'N/A'}</td>
@@ -516,7 +653,7 @@
         }
 
         async function deleteRecord(recordId) {
-            if (confirm('Are you sure you want to delete this medical record? This action cannot be undone.')) {
+            if (confirm('Are you sure you want to archive this medical record? You can restore it from the Archive page later.')) {
                 try {
                     const response = await fetch(`/api/medical-records/${recordId}`, {
                         method: 'DELETE',
@@ -526,15 +663,15 @@
                     });
 
                     if (response.ok) {
-                        alert('Record deleted successfully');
+                        alert('Record archived successfully');
                         loadRecords();
                     } else {
                         const error = await response.json();
-                        alert('Error deleting record: ' + error.message);
+                        alert('Error archiving record: ' + error.message);
                     }
                 } catch (error) {
-                    console.error('Error deleting record:', error);
-                    alert('Error deleting record');
+                    console.error('Error archiving record:', error);
+                    alert('Error archiving record');
                 }
             }
         }
@@ -544,7 +681,7 @@
                 const response = await fetch(`/api/medical-records/${recordId}`);
                 if (response.ok) {
                     const record = await response.json();
-                    alert(`Record Details:\nPatient: ${record.student_name}\nType: ${record.record_type}\nDiagnosis: ${record.diagnosis}\nTreatment: ${record.treatment}`);
+                    alert(`Record Details:\nStudent: ${record.student_name}\nType: ${record.record_type}\nDiagnosis: ${record.diagnosis}\nTreatment: ${record.treatment}`);
                 }
             } catch (error) {
                 console.error('Error viewing record details:', error);
@@ -574,6 +711,39 @@
                 console.error('Error fetching student info:', error);
                 document.getElementById('internalStudentId').value = '';
                 document.getElementById('studentName').value = 'Error looking up student';
+            }
+        }
+
+        async function fetchAppointmentInfo(appointmentId) {
+            if (!appointmentId) return;
+            
+            try {
+                const response = await fetch(`/api/nurse/appointments/${appointmentId}`);
+                if (response.ok) {
+                    const appointment = await response.json();
+                    document.getElementById('appointmentId').value = appointment.id;
+                    document.getElementById('internalStudentId').value = appointment.student_id;
+                    document.getElementById('studentId').value = appointment.student_number || appointment.student_id;
+                    document.getElementById('studentName').value = appointment.student_name;
+                    document.getElementById('studentName').style.color = 'inherit';
+                    
+                    // Pre-fill record type based on appointment reason
+                    const reason = (appointment.reason || '').toLowerCase();
+                    const recordTypeSelect = document.getElementById('recordType');
+                    for (let i = 0; i < recordTypeSelect.options.length; i++) {
+                        if (reason.includes(recordTypeSelect.options[i].value)) {
+                            recordTypeSelect.value = recordTypeSelect.options[i].value;
+                            break;
+                        }
+                    }
+                    
+                    // Set visit date to appointment date
+                    if (appointment.appointment_date) {
+                        document.getElementById('visitDate').value = new Date(appointment.appointment_date).toISOString().split('T')[0];
+                    }
+                }
+            } catch (error) {
+                console.error('Error fetching appointment info:', error);
             }
         }
 
@@ -636,6 +806,20 @@
             loadRecords();
             
             document.getElementById('searchBtn').addEventListener('click', loadRecords);
+
+            // Hide search icon when typing
+            const searchInput = document.getElementById('searchStudent');
+            const searchIcon = document.querySelector('.search-icon');
+            
+            searchInput.addEventListener('input', function() {
+                if (this.value.length > 0) {
+                    searchIcon.style.display = 'none';
+                    this.style.paddingLeft = '15px';
+                } else {
+                    searchIcon.style.display = 'block';
+                    this.style.paddingLeft = '40px';
+                }
+            });
             
             // If studentId is in URL, auto-open form and populate ID
             const urlParams = new URLSearchParams(window.location.search);

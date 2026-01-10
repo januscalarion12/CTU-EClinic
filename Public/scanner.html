@@ -228,9 +228,9 @@
         function showResult(appointment) {
             const info = document.getElementById('studentInfo');
             info.innerHTML = `
-                <p><strong>Student Name:</strong> ${appointment.studentName}</p>
-                <p><strong>Student ID:</strong> ${appointment.studentId}</p>
-                <p><strong>Status:</strong> ${appointment.status}</p>
+                <p><strong>Student Name:</strong> ${appointment.studentName || 'Unknown Student'}</p>
+                <p><strong>Student ID:</strong> ${appointment.studentId || 'N/A'}</p>
+                <p><strong>Status:</strong> ${appointment.status || 'N/A'}</p>
             `;
             document.getElementById('scanResult').style.display = 'block';
             document.getElementById('viewRecord').onclick = () => {

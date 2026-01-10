@@ -25,7 +25,7 @@ INSERT INTO users (
     'User',
     NULL,
     'ADMIN001',
-    'admin@ctu.edu.ph',
+    'admin@gmail.com',
     '+63 123 456 7890',
     '$2a$10$PebH7vEpASIYI/Xj53y9/.TKHYs1k5eEWJwe9u0Zp3D3FP8jvk/SC', -- Bcrypt hash for password 'admin123'
     1, -- Email confirmed

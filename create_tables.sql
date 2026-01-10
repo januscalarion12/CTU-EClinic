@@ -245,3 +245,20 @@ CREATE INDEX idx_waiting_list_nurse_id ON appointment_waiting_list(nurse_id);
 CREATE INDEX idx_waiting_list_requested_date ON appointment_waiting_list(requested_date);
 CREATE INDEX idx_waiting_list_status ON appointment_waiting_list(status);
 CREATE INDEX idx_waiting_list_priority ON appointment_waiting_list(priority);
+
+-- Sessions table for express-session with connect-mssql-v2
+CREATE TABLE sessions (
+    sid NVARCHAR(255) NOT NULL PRIMARY KEY,
+    session NVARCHAR(MAX) NOT NULL,
+    expires DATETIME2 NOT NULL
+);
+
+CREATE INDEX idx_sessions_expires ON sessions(expires);
+-- Add system settings table
+CREATE TABLE system_settings (
+    id INT IDENTITY(1,1) PRIMARY KEY,
+    setting_key NVARCHAR(100) UNIQUE NOT NULL,
+    setting_value NVARCHAR(MAX),
+    updated_at DATETIME2 DEFAULT GETDATE()
+);
+CREATE INDEX idx_settings_key ON system_settings(setting_key);

@@ -240,7 +240,7 @@
 
             tableBody.innerHTML = appointments.map(apt => `
                 <tr>
-                    <td>${apt.student_name} (${apt.student_number})</td>
+                    <td>${apt.student_name || 'Unknown Student'} (${apt.student_number || 'N/A'})</td>
                     <td>${new Date(apt.appointment_date).toLocaleDateString()}</td>
                     <td>${new Date(apt.appointment_date).toLocaleTimeString('en-US', {
                         hour: 'numeric',
@@ -308,9 +308,10 @@
                 });
 
                 if (response.ok) {
+                    await loadAppointments();
+                    await loadAppointmentStats();
                     alert('Appointment archived successfully!');
-                    loadAppointments();
-                    loadAppointmentStats();
+                    window.location.href = 'archive.html';
                 } else {
                     const error = await response.json();
                     alert('Error archiving appointment: ' + error.message);

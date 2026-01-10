@@ -31,7 +31,10 @@ router.get('/students', authorizeRole(['nurse']), async (req, res) => {
     const pool = await poolPromise;
 
     let query = `
-      SELECT s.id, s.student_id, u.ctu_id, s.name, s.email, s.phone, s.department, s.school_year, s.school_level,
+      SELECT s.id, s.student_id, u.ctu_id, 
+             ISNULL(NULLIF(LTRIM(RTRIM(s.name)), ''), 
+                    ISNULL(NULLIF(LTRIM(RTRIM(ISNULL(u.first_name, '') + ' ' + ISNULL(u.last_name, ''))), ''), s.student_id)) as name,
+             s.email, s.phone, s.department, s.school_year, s.school_level,
              s.date_of_birth, s.gender, s.blood_type, s.allergies, s.medical_conditions
       FROM students s
       JOIN users u ON s.user_id = u.id
@@ -136,7 +139,10 @@ router.get('/students/:studentId', authorizeRole(['nurse']), async (req, res) =>
     // 2. student_id in students table
     // 3. ctu_id in users table
     let query = `
-      SELECT s.*, u.ctu_id, u.first_name, u.last_name, u.email as user_email 
+      SELECT s.*, 
+             ISNULL(NULLIF(LTRIM(RTRIM(s.name)), ''), 
+                    ISNULL(NULLIF(LTRIM(RTRIM(ISNULL(u.first_name, '') + ' ' + ISNULL(u.last_name, ''))), ''), s.student_id)) as name,
+             u.ctu_id, u.first_name, u.last_name, u.email as user_email 
       FROM students s
       JOIN users u ON s.user_id = u.id
       WHERE s.student_id = @student_id_param OR u.ctu_id = @student_id_param
@@ -144,7 +150,10 @@ router.get('/students/:studentId', authorizeRole(['nurse']), async (req, res) =>
     
     if (!isNaN(studentId) && studentId.trim() !== '') {
       query = `
-        SELECT s.*, u.ctu_id, u.first_name, u.last_name, u.email as user_email 
+        SELECT s.*, 
+               ISNULL(NULLIF(LTRIM(RTRIM(s.name)), ''), 
+                      ISNULL(NULLIF(LTRIM(RTRIM(ISNULL(u.first_name, '') + ' ' + ISNULL(u.last_name, ''))), ''), s.student_id)) as name,
+               u.ctu_id, u.first_name, u.last_name, u.email as user_email 
         FROM students s
         JOIN users u ON s.user_id = u.id
         WHERE s.id = @student_id_param OR s.student_id = @student_id_param OR u.ctu_id = @student_id_param
@@ -303,9 +312,11 @@ router.get('/reports', authorizeRole(['nurse']), async (req, res) => {
     const result = await request
       .input('nurse_id', sql.Int, nurseId)
       .query(`
-        SELECT r.*, s.name as student_name
+        SELECT r.*, ISNULL(NULLIF(LTRIM(RTRIM(s.name)), ''), 
+                           ISNULL(NULLIF(LTRIM(RTRIM(ISNULL(u.first_name, '') + ' ' + ISNULL(u.last_name, ''))), ''), s.student_id)) as student_name
         FROM reports r
         JOIN students s ON r.student_id = s.id
+        LEFT JOIN users u ON s.user_id = u.id
         WHERE r.nurse_id = @nurse_id
         ORDER BY r.created_at DESC
       `);
@@ -459,7 +470,10 @@ router.get('/availability', authorizeRole(['nurse']), async (req, res) => {
     const pool = await poolPromise;
 
     let query = `
-      SELECT id, nurse_id, availability_date, start_time, end_time, max_patients, is_available
+      SELECT id, nurse_id, availability_date, 
+             CONVERT(VARCHAR(5), start_time, 108) as start_time, 
+             CONVERT(VARCHAR(5), end_time, 108) as end_time, 
+             max_patients, is_available
       FROM nurse_availability
       WHERE nurse_id = @nurse_id
     `;
@@ -582,7 +596,10 @@ router.get('/availability/:id', authorizeRole(['nurse']), async (req, res) => {
        .input('id', sql.Int, id)
        .input('nurse_id', sql.Int, nurseId)
        .query(`
-         SELECT id, nurse_id, availability_date, start_time, end_time, max_patients, is_available
+         SELECT id, nurse_id, availability_date, 
+                CONVERT(VARCHAR(5), start_time, 108) as start_time, 
+                CONVERT(VARCHAR(5), end_time, 108) as end_time, 
+                max_patients, is_available
          FROM nurse_availability
          WHERE id = @id AND nurse_id = @nurse_id
        `);
@@ -656,34 +673,51 @@ router.delete('/availability/:id', authorizeRole(['nurse']), async (req, res) =>
 // Archive an appointment
 router.post('/appointments/:id/archive', authorizeRole(['nurse']), async (req, res) => {
   console.log('POST /appointments/:id/archive hit with id:', req.params.id);
+  const pool = await poolPromise;
+  const transaction = pool.transaction();
   try {
     const userId = req.user.id;
-    const appointmentId = req.params.id;
+    const appointmentId = parseInt(req.params.id);
+
+    if (isNaN(appointmentId)) {
+      return res.status(400).json({ message: 'Invalid appointment ID' });
+    }
 
     const nurseId = await getNurseId(userId);
-    const pool = await poolPromise;
+
+    await transaction.begin();
 
     // First, verify the appointment belongs to this nurse
-    const verifyResult = await pool.request()
+    const verifyRequest = transaction.request();
+    const verifyResult = await verifyRequest
       .input('appointment_id', sql.Int, appointmentId)
       .input('nurse_id', sql.Int, nurseId)
       .query('SELECT notes FROM appointments WHERE id = @appointment_id AND nurse_id = @nurse_id');
 
     if (verifyResult.recordset.length === 0) {
-      return res.status(404).json({ message: 'Appointment not found' });
+      await transaction.rollback();
+      return res.status(404).json({ message: 'Appointment not found or not authorized' });
     }
 
     const currentNotes = verifyResult.recordset[0].notes || '';
     const archivedNotes = `[ARCHIVED] ${currentNotes}`.trim();
 
     // Mark as archived in notes
-    await pool.request()
+    const updateRequest = transaction.request();
+    const updateResult = await updateRequest
       .input('appointment_id', sql.Int, appointmentId)
-      .input('notes', sql.NVarChar, archivedNotes)
+      .input('notes', sql.NVarChar(sql.MAX), archivedNotes)
       .query('UPDATE appointments SET notes = @notes WHERE id = @appointment_id');
 
+    if (updateResult.rowsAffected[0] === 0) {
+      await transaction.rollback();
+      return res.status(500).json({ message: 'Failed to update appointment' });
+    }
+
+    await transaction.commit();
     res.json({ message: 'Appointment archived successfully' });
   } catch (error) {
+    await transaction.rollback();
     console.error('Error archiving appointment:', error);
     res.status(500).json({ message: 'Error archiving appointment' });
   }
@@ -691,34 +725,51 @@ router.post('/appointments/:id/archive', authorizeRole(['nurse']), async (req, r
 
 // Restore an archived appointment
 router.post('/appointments/:id/restore', authorizeRole(['nurse']), async (req, res) => {
+  const pool = await poolPromise;
+  const transaction = pool.transaction();
   try {
     const userId = req.user.id;
-    const appointmentId = req.params.id;
+    const appointmentId = parseInt(req.params.id);
+
+    if (isNaN(appointmentId)) {
+      return res.status(400).json({ message: 'Invalid appointment ID' });
+    }
 
     const nurseId = await getNurseId(userId);
-    const pool = await poolPromise;
+
+    await transaction.begin();
 
     // First, verify the appointment belongs to this nurse
-    const verifyResult = await pool.request()
+    const verifyRequest = transaction.request();
+    const verifyResult = await verifyRequest
       .input('appointment_id', sql.Int, appointmentId)
       .input('nurse_id', sql.Int, nurseId)
       .query('SELECT notes FROM appointments WHERE id = @appointment_id AND nurse_id = @nurse_id');
 
     if (verifyResult.recordset.length === 0) {
-      return res.status(404).json({ message: 'Appointment not found' });
+      await transaction.rollback();
+      return res.status(404).json({ message: 'Appointment not found or not authorized' });
     }
 
     const currentNotes = verifyResult.recordset[0].notes || '';
     const restoredNotes = currentNotes.replace('[ARCHIVED]', '').trim();
 
     // Mark as restored (remove prefix from notes)
-    await pool.request()
+    const updateRequest = transaction.request();
+    const updateResult = await updateRequest
       .input('appointment_id', sql.Int, appointmentId)
-      .input('notes', sql.NVarChar, restoredNotes || null)
+      .input('notes', sql.NVarChar(sql.MAX), restoredNotes || null)
       .query('UPDATE appointments SET notes = @notes WHERE id = @appointment_id');
 
+    if (updateResult.rowsAffected[0] === 0) {
+      await transaction.rollback();
+      return res.status(500).json({ message: 'Failed to update appointment' });
+    }
+
+    await transaction.commit();
     res.json({ message: 'Appointment restored successfully' });
   } catch (error) {
+    await transaction.rollback();
     console.error('Error restoring appointment:', error);
     res.status(500).json({ message: 'Error restoring appointment' });
   }
@@ -735,7 +786,8 @@ router.get('/appointments/archived', authorizeRole(['nurse']), async (req, res) 
       SELECT
         a.id,
         a.student_id,
-        s.name as student_name,
+        ISNULL(NULLIF(LTRIM(RTRIM(s.name)), ''), 
+               ISNULL(NULLIF(LTRIM(RTRIM(ISNULL(u.first_name, '') + ' ' + ISNULL(u.last_name, ''))), ''), s.student_id)) as student_name,
         s.student_id as student_number,
         FORMAT(a.appointment_date, 'yyyy-MM-ddTHH:mm:ss') as appointment_date_iso,
         a.reason,
@@ -745,6 +797,7 @@ router.get('/appointments/archived', authorizeRole(['nurse']), async (req, res) 
         mr.id as record_id
       FROM appointments a
       INNER JOIN students s ON a.student_id = s.id
+      LEFT JOIN users u ON s.user_id = u.id
       LEFT JOIN medical_records mr ON a.id = mr.appointment_id
       WHERE a.nurse_id = @nurse_id AND a.notes LIKE '[ARCHIVED]%'
       ORDER BY a.appointment_date DESC
@@ -767,6 +820,44 @@ router.get('/appointments/archived', authorizeRole(['nurse']), async (req, res) 
   }
 });
 
+// Get specific appointment details
+router.get('/appointments/:id', authorizeRole(['nurse']), async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const appointmentId = req.params.id;
+    const nurseId = await getNurseId(userId);
+
+    const pool = await poolPromise;
+    const request = pool.request();
+    const result = await request
+      .input('appointment_id', sql.Int, appointmentId)
+      .input('nurse_id', sql.Int, nurseId)
+      .query(`
+        SELECT a.*, 
+               ISNULL(NULLIF(LTRIM(RTRIM(s.name)), ''), 
+                      ISNULL(NULLIF(LTRIM(RTRIM(ISNULL(u.first_name, '') + ' ' + ISNULL(u.last_name, ''))), ''), s.student_id)) as student_name,
+               u.ctu_id as student_number,
+               FORMAT(a.appointment_date, 'yyyy-MM-ddTHH:mm:ss') as appointment_date_iso
+        FROM appointments a
+        INNER JOIN students s ON a.student_id = s.id
+        LEFT JOIN users u ON s.user_id = u.id
+        WHERE a.id = @appointment_id AND a.nurse_id = @nurse_id
+      `);
+
+    if (result.recordset.length === 0) {
+      return res.status(404).json({ message: 'Appointment not found' });
+    }
+
+    const appointment = result.recordset[0];
+    appointment.appointment_date = appointment.appointment_date_iso || appointment.appointment_date;
+    
+    res.json(appointment);
+  } catch (error) {
+    console.error('Error fetching appointment details:', error);
+    res.status(500).json({ message: 'Error fetching appointment details' });
+  }
+});
+
 // Get nurse's appointments (excluding archived)
 router.get('/appointments', authorizeRole(['nurse']), async (req, res) => {
   try {
@@ -780,7 +871,8 @@ router.get('/appointments', authorizeRole(['nurse']), async (req, res) => {
       SELECT
         a.id,
         a.student_id,
-        s.name as student_name,
+        ISNULL(NULLIF(LTRIM(RTRIM(s.name)), ''), 
+               ISNULL(NULLIF(LTRIM(RTRIM(ISNULL(u.first_name, '') + ' ' + ISNULL(u.last_name, ''))), ''), s.student_id)) as student_name,
         s.student_id as student_number,
         FORMAT(a.appointment_date, 'yyyy-MM-ddTHH:mm:ss') as appointment_date_iso,
         a.reason,
@@ -791,6 +883,7 @@ router.get('/appointments', authorizeRole(['nurse']), async (req, res) => {
         mr.id as record_id
       FROM appointments a
       INNER JOIN students s ON a.student_id = s.id
+      LEFT JOIN users u ON s.user_id = u.id
       LEFT JOIN medical_records mr ON a.id = mr.appointment_id
       WHERE a.nurse_id = @nurse_id AND (a.notes IS NULL OR a.notes NOT LIKE '[ARCHIVED]%')
     `;
@@ -844,9 +937,13 @@ router.put('/appointments/:id/status', authorizeRole(['nurse']), async (req, res
       .input('appointment_id', sql.Int, appointmentId)
       .input('nurse_id', sql.Int, nurseId)
       .query(`
-        SELECT a.id, a.student_id, s.name as student_name, a.appointment_date
+        SELECT a.id, a.student_id, 
+               ISNULL(NULLIF(LTRIM(RTRIM(s.name)), ''), 
+                      ISNULL(NULLIF(LTRIM(RTRIM(ISNULL(u.first_name, '') + ' ' + ISNULL(u.last_name, ''))), ''), s.student_id)) as student_name, 
+               a.appointment_date
         FROM appointments a
         INNER JOIN students s ON a.student_id = s.id
+        LEFT JOIN users u ON s.user_id = u.id
         WHERE a.id = @appointment_id AND a.nurse_id = @nurse_id
       `);
 
@@ -890,7 +987,10 @@ router.put('/appointments/:id/status', authorizeRole(['nurse']), async (req, res
         .input('student_id', sql.Int, appointment.student_id)
         .input('appointment_id', sql.Int, appointmentId)
         .query(`
-          SELECT u.email, s.name as student_name, n.name as nurse_name, a.reason
+          SELECT u.email, 
+                 ISNULL(NULLIF(LTRIM(RTRIM(s.name)), ''), 
+                        ISNULL(NULLIF(LTRIM(RTRIM(ISNULL(u.first_name, '') + ' ' + ISNULL(u.last_name, ''))), ''), s.student_id)) as student_name, 
+                 n.name as nurse_name, a.reason
           FROM students s
           INNER JOIN users u ON s.user_id = u.id
           INNER JOIN appointments a ON a.student_id = s.id
@@ -1099,7 +1199,8 @@ router.get('/appointments-overview', authorizeRole(['nurse']), async (req, res) 
       .query(`
         SELECT TOP 5
           a.id,
-          s.name as student_name,
+          ISNULL(NULLIF(LTRIM(RTRIM(s.name)), ''), 
+                 ISNULL(NULLIF(LTRIM(RTRIM(ISNULL(u.first_name, '') + ' ' + ISNULL(u.last_name, ''))), ''), s.student_id)) as student_name,
           s.student_id,
           a.appointment_date,
           a.reason,
@@ -1107,6 +1208,7 @@ router.get('/appointments-overview', authorizeRole(['nurse']), async (req, res) 
           a.qr_code
         FROM appointments a
         INNER JOIN students s ON a.student_id = s.id
+        LEFT JOIN users u ON s.user_id = u.id
         WHERE a.nurse_id = @nurse_id
           AND a.appointment_date >= GETDATE()
           AND a.appointment_date <= DATEADD(day, 7, GETDATE())
@@ -1122,7 +1224,8 @@ router.get('/appointments-overview', authorizeRole(['nurse']), async (req, res) 
       .query(`
         SELECT
           a.id,
-          s.name as student_name,
+          ISNULL(NULLIF(LTRIM(RTRIM(s.name)), ''), 
+                 ISNULL(NULLIF(LTRIM(RTRIM(ISNULL(u.first_name, '') + ' ' + ISNULL(u.last_name, ''))), ''), s.student_id)) as student_name,
           s.student_id,
           a.appointment_date,
           a.reason,
@@ -1130,6 +1233,7 @@ router.get('/appointments-overview', authorizeRole(['nurse']), async (req, res) 
           a.qr_code
         FROM appointments a
         INNER JOIN students s ON a.student_id = s.id
+        LEFT JOIN users u ON s.user_id = u.id
         WHERE a.nurse_id = @nurse_id
           AND CAST(a.appointment_date AS DATE) = @today
           AND a.status IN ('confirmed', 'pending')
@@ -1205,9 +1309,13 @@ router.post('/scan-appointment-qr', authorizeRole(['nurse']), async (req, res) =
         .input('appointment_id', sql.Int, appointmentId)
         .input('nurse_id', sql.Int, nurseId)
         .query(`
-          SELECT a.id, a.student_id, a.appointment_date, a.status, s.name as student_name, s.student_id as student_number
+          SELECT a.id, a.student_id, a.appointment_date, a.status, 
+                 ISNULL(NULLIF(LTRIM(RTRIM(s.name)), ''), 
+                        ISNULL(NULLIF(LTRIM(RTRIM(ISNULL(u.first_name, '') + ' ' + ISNULL(u.last_name, ''))), ''), s.student_id)) as student_name, 
+                 s.student_id as student_number
           FROM appointments a
           INNER JOIN students s ON a.student_id = s.id
+          LEFT JOIN users u ON s.user_id = u.id
           WHERE a.id = @appointment_id AND a.nurse_id = @nurse_id
         `);
 
@@ -1223,9 +1331,13 @@ router.post('/scan-appointment-qr', authorizeRole(['nurse']), async (req, res) =
         .input('nurse_id', sql.Int, nurseId)
         .input('today', sql.Date, new Date().toISOString().split('T')[0])
         .query(`
-          SELECT TOP 1 a.id, a.student_id, a.appointment_date, a.status, s.name as student_name, s.student_id as student_number
+          SELECT TOP 1 a.id, a.student_id, a.appointment_date, a.status, 
+                 ISNULL(NULLIF(LTRIM(RTRIM(s.name)), ''), 
+                        ISNULL(NULLIF(LTRIM(RTRIM(ISNULL(u.first_name, '') + ' ' + ISNULL(u.last_name, ''))), ''), s.student_id)) as student_name, 
+                 s.student_id as student_number
           FROM appointments a
           INNER JOIN students s ON a.student_id = s.id
+          LEFT JOIN users u ON s.user_id = u.id
           WHERE (s.student_id = @student_number_qr OR s.id = TRY_CAST(@student_number_qr AS INT))
             AND a.nurse_id = @nurse_id
             AND CAST(a.appointment_date AS DATE) = @today
@@ -1239,7 +1351,10 @@ router.post('/scan-appointment-qr', authorizeRole(['nurse']), async (req, res) =
         const studentInfoResult = await studentInfoRequest
           .input('student_id_qr', sql.NVarChar, studentIdFromQR)
           .query(`
-            SELECT s.id, s.name as student_name, s.student_id as student_number
+            SELECT s.id, 
+                   ISNULL(NULLIF(LTRIM(RTRIM(s.name)), ''), 
+                          ISNULL(NULLIF(LTRIM(RTRIM(ISNULL(u.first_name, '') + ' ' + ISNULL(u.last_name, ''))), ''), s.student_id)) as student_name, 
+                   s.student_id as student_number
             FROM students s
             JOIN users u ON s.user_id = u.id
             WHERE s.student_id = @student_id_qr OR s.id = TRY_CAST(@student_id_qr AS INT) OR u.ctu_id = @student_id_qr
