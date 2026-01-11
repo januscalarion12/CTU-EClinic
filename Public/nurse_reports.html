@@ -6,6 +6,52 @@
     <title>Nurse Reports - Clinic Management System</title>
     <link rel="stylesheet" href="css/style.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <style>
+        .report-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 20px;
+            background: white;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+        }
+        .report-table th, .report-table td {
+            padding: 12px 15px;
+            text-align: left;
+            border-bottom: 1px solid #eee;
+        }
+        .report-table th {
+            background-color: #f8f9fa;
+            font-weight: 600;
+            color: #333;
+            text-transform: uppercase;
+            font-size: 0.85rem;
+        }
+        .report-table tr:hover {
+            background-color: #f1f4f8;
+        }
+        .status-badge {
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 0.75rem;
+            font-weight: 600;
+            text-transform: capitalize;
+        }
+        .status-pending { background: #fff3cd; color: #856404; }
+        .status-confirmed { background: #d1ecf1; color: #0c5460; }
+        .status-completed { background: #d4edda; color: #155724; }
+        .status-cancelled { background: #f8d7da; color: #721c24; }
+        
+        .report-loading {
+            text-align: center;
+            padding: 40px;
+            color: #666;
+        }
+        .report-loading i {
+            font-size: 2rem;
+            margin-bottom: 10px;
+            display: block;
+        }
+    </style>
 </head>
 <body>
     <!-- Top Header -->
@@ -288,53 +334,77 @@
         });
 
         // Report generation functions
+        async function fetchAndDisplayReport(endpoint, params = {}, title) {
+            const container = document.getElementById('reportContent');
+            const output = document.getElementById('reportOutput');
+            const titleElem = document.getElementById('reportTitle');
+            
+            output.style.display = 'block';
+            titleElem.textContent = title;
+            container.innerHTML = '<div class="report-loading"><i class="fas fa-spinner fa-spin"></i>Generating report...</div>';
+            
+            try {
+                const queryParams = new URLSearchParams(params).toString();
+                const response = await fetch(`${endpoint}${queryParams ? '?' + queryParams : ''}`, {
+                    credentials: 'include'
+                });
+                
+                if (response.ok) {
+                    const result = await response.json();
+                    displayReportResults(result);
+                    // Scroll to report output
+                    output.scrollIntoView({ behavior: 'smooth' });
+                } else {
+                    const error = await response.json();
+                    container.innerHTML = `<p class="error">Error: ${error.message || 'Failed to generate report'}</p>`;
+                }
+            } catch (error) {
+                console.error('Error:', error);
+                container.innerHTML = '<p class="error">Error: Network error or server is down.</p>';
+            }
+        }
+
         function generateDailyReport() {
-            showReport('Daily Appointments Report', 'Generating daily appointments report...');
+            const today = new Date().toISOString().split('T')[0];
+            fetchAndDisplayReport('/api/reports/appointments', { startDate: today, endDate: today }, 'Daily Appointments Report');
         }
 
         function generateWeeklyReport() {
-            showReport('Weekly Summary Report', 'Generating weekly summary report...');
+            const now = new Date();
+            const start = new Date(now.setDate(now.getDate() - 7)).toISOString().split('T')[0];
+            const end = new Date().toISOString().split('T')[0];
+            fetchAndDisplayReport('/api/reports/appointments', { startDate: start, endDate: end }, 'Weekly Summary Report');
         }
 
         function generateHealthReport() {
-            showReport('Student Health Records Report', 'Generating health records report...');
+            fetchAndDisplayReport('/api/reports/medical-records', {}, 'Student Health Records Report');
         }
 
         function generatePerformanceReport() {
-            showReport('Performance Metrics Report', 'Generating performance metrics report...');
+            // Reusing statistics as a performance overview for now
+            fetchAndDisplayReport('/api/reports/statistics', { period: 'month' }, 'Performance Metrics Report');
         }
 
         function generateVaccinationReport() {
-            showReport('Vaccination Report', 'Generating vaccination report...');
+            fetchAndDisplayReport('/api/reports/medical-records', { recordType: 'vaccination' }, 'Vaccination Report');
         }
 
         function generateEmergencyReport() {
-            showReport('Emergency Cases Report', 'Generating emergency cases report...');
+            fetchAndDisplayReport('/api/reports/medical-records', { recordType: 'emergency' }, 'Emergency Cases Report');
         }
 
-        // Preview functions
-        function previewDailyReport() {
-            showReport('Daily Appointments Preview', 'Preview of today\'s appointments...');
-        }
+        // Preview functions (using same functions as generate for now)
+        function previewDailyReport() { generateDailyReport(); }
+        function previewWeeklyReport() { generateWeeklyReport(); }
+        function previewHealthReport() { generateHealthReport(); }
+        function previewPerformanceReport() { generatePerformanceReport(); }
+        function previewVaccinationReport() { generateVaccinationReport(); }
+        function previewEmergencyReport() { generateEmergencyReport(); }
 
-        function previewWeeklyReport() {
-            showReport('Weekly Summary Preview', 'Preview of weekly summary...');
-        }
-
-        function previewHealthReport() {
-            showReport('Health Records Preview', 'Preview of health records...');
-        }
-
-        function previewPerformanceReport() {
-            showReport('Performance Preview', 'Preview of performance metrics...');
-        }
-
-        function previewVaccinationReport() {
-            showReport('Vaccination Preview', 'Preview of vaccination data...');
-        }
-
-        function previewEmergencyReport() {
-            showReport('Emergency Preview', 'Preview of emergency cases...');
+        function showReport(title, message) {
+            document.getElementById('reportTitle').textContent = title;
+            document.getElementById('reportContent').innerHTML = `<p>${message}</p>`;
+            document.getElementById('reportOutput').style.display = 'block';
         }
 
         // Utility functions
@@ -347,38 +417,63 @@
             let startDate = formData.get('startDate');
             let endDate = formData.get('endDate');
 
-            if (dateRange !== 'custom') {
+            if (dateRange !== 'custom' && dateRange !== '') {
                 const now = new Date();
-                endDate = now.toISOString().split('T')[0];
-                if (dateRange === 'today') startDate = endDate;
-                else if (dateRange === 'week') startDate = new Date(now.setDate(now.getDate() - 7)).toISOString().split('T')[0];
-                else if (dateRange === 'month') startDate = new Date(now.setMonth(now.getMonth() - 1)).toISOString().split('T')[0];
-                else if (dateRange === 'year') startDate = new Date(now.setFullYear(now.getFullYear() - 1)).toISOString().split('T')[0];
+                endDate = new Date().toISOString().split('T')[0];
+                if (dateRange === 'today') {
+                    startDate = endDate;
+                } else if (dateRange === 'week') {
+                    startDate = new Date(now.setDate(now.getDate() - 7)).toISOString().split('T')[0];
+                } else if (dateRange === 'month') {
+                    startDate = new Date(now.setMonth(now.getMonth() - 1)).toISOString().split('T')[0];
+                } else if (dateRange === 'year') {
+                    startDate = new Date(now.setFullYear(now.getFullYear() - 1)).toISOString().split('T')[0];
+                }
             }
 
-            try {
-                let endpoint = reportType === 'appointments' ? '/api/reports/appointments' : '/api/reports/medical-records';
-                const response = await fetch(`${endpoint}?startDate=${startDate}&endDate=${endDate}`);
-                if (response.ok) {
-                    const result = await response.json();
-                    displayReportResults(result);
-                } else {
-                    alert('Error generating report');
-                }
-            } catch (error) {
-                console.error('Error:', error);
+            const params = { startDate, endDate };
+            let endpoint = '/api/reports/appointments';
+            let title = 'Custom Appointments Report';
+
+            if (reportType === 'records') {
+                endpoint = '/api/reports/medical-records';
+                title = 'Custom Medical Records Report';
+            } else if (reportType === 'patients') {
+                endpoint = '/api/reports/students';
+                title = 'Student Demographics Report';
+            } else if (reportType === 'performance') {
+                endpoint = '/api/reports/statistics';
+                title = 'Performance Statistics Report';
             }
+
+            fetchAndDisplayReport(endpoint, params, title);
         });
 
         function displayReportResults(result) {
             const container = document.getElementById('reportContent');
-            const data = result.data;
+            const data = result.data || result.statistics;
+            const reportType = result.reportType || (result.statistics ? 'Statistics Report' : 'Report');
             
-            if (!data || data.length === 0) {
+            if (!data || (Array.isArray(data) && data.length === 0)) {
                 container.innerHTML = '<p>No data found for the selected criteria.</p>';
+            } else if (!Array.isArray(data)) {
+                // Handle statistics object
+                let html = '<div class="stats-summary">';
+                html += '<table class="report-table"><tbody>';
+                for (const [key, value] of Object.entries(data)) {
+                    html += `<tr><th>${key.replace(/([A-Z])/g, ' $1').toUpperCase()}</th><td>${value}</td></tr>`;
+                }
+                html += '</tbody></table></div>';
+                container.innerHTML = html;
             } else {
-                let html = '<table class="report-table"><thead><tr>';
-                const keys = Object.keys(data[0]);
+                // Handle data array
+                let html = '<div class="table-responsive"><table class="report-table"><thead><tr>';
+                
+                // Define columns to show to avoid showing internal IDs and keep it clean
+                const allKeys = Object.keys(data[0]);
+                const excludedKeys = ['id', 'user_id', 'nurse_id', 'student_id_internal', 'qr_code'];
+                const keys = allKeys.filter(k => !excludedKeys.includes(k.toLowerCase()));
+                
                 keys.forEach(key => html += `<th>${key.replace(/_/g, ' ').toUpperCase()}</th>`);
                 html += '</tr></thead><tbody>';
                 
@@ -386,21 +481,32 @@
                     html += '<tr>';
                     keys.forEach(key => {
                         let val = row[key];
-                        if (key.includes('date') || key.includes('_at')) val = new Date(val).toLocaleDateString();
-                        html += `<td>${val || ''}</td>`;
+                        if (key.toLowerCase().includes('date') || key.toLowerCase().includes('_at')) {
+                            val = val ? new Date(val).toLocaleDateString() : 'N/A';
+                        }
+                        if (key.toLowerCase() === 'status') {
+                            html += `<td><span class="status-badge status-${val.toLowerCase()}">${val}</span></td>`;
+                        } else {
+                            html += `<td>${val === null || val === undefined ? '' : val}</td>`;
+                        }
                     });
                     html += '</tr>';
                 });
                 
-                html += '</tbody></table>';
+                html += '</tbody></table></div>';
                 container.innerHTML = html;
                 
                 // Add Download CSV button
+                const actionContainer = document.querySelector('.report-header .report-actions');
+                // Remove existing CSV button if any
+                const oldCsvBtn = actionContainer.querySelector('.btn-csv');
+                if (oldCsvBtn) oldCsvBtn.remove();
+                
                 const downloadBtn = document.createElement('button');
-                downloadBtn.className = 'btn-primary';
+                downloadBtn.className = 'btn-primary btn-csv';
                 downloadBtn.innerHTML = '<i class="fas fa-file-csv"></i> Download CSV';
-                downloadBtn.onclick = () => downloadCSV(data, result.reportType);
-                document.querySelector('.report-header .report-actions').prepend(downloadBtn);
+                downloadBtn.onclick = () => downloadCSV(data, reportType);
+                actionContainer.prepend(downloadBtn);
             }
             
             document.getElementById('reportOutput').style.display = 'block';
@@ -408,15 +514,25 @@
 
         function downloadCSV(data, title) {
             const csvRows = [];
-            const headers = Object.keys(data[0]);
-            csvRows.push(headers.join(','));
+            
+            if (Array.isArray(data)) {
+                const headers = Object.keys(data[0]);
+                csvRows.push(headers.join(','));
 
-            for (const row of data) {
-                const values = headers.map(header => {
-                    const escaped = ('' + row[header]).replace(/"/g, '\\"');
-                    return `"${escaped}"`;
-                });
-                csvRows.push(values.join(','));
+                for (const row of data) {
+                    const values = headers.map(header => {
+                        const val = row[header];
+                        const escaped = ('' + (val === null || val === undefined ? '' : val)).replace(/"/g, '\\"');
+                        return `"${escaped}"`;
+                    });
+                    csvRows.push(values.join(','));
+                }
+            } else {
+                // Statistics object
+                csvRows.push('Metric,Value');
+                for (const [key, value] of Object.entries(data)) {
+                    csvRows.push(`${key.replace(/([A-Z])/g, ' $1')},${value}`);
+                }
             }
 
             const blob = new Blob([csvRows.join('\n')], { type: 'text/csv' });
@@ -445,6 +561,10 @@
         function resetCustomForm() {
             document.getElementById('customReportForm').reset();
             document.getElementById('customDateRange').style.display = 'none';
+        }
+
+        function closeReport() {
+            document.getElementById('reportOutput').style.display = 'none';
         }
 
     </script>

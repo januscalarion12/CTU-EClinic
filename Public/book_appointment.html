@@ -297,6 +297,11 @@
                 return;
             }
 
+            const submitBtn = this.querySelector('button[type="submit"]');
+            const originalBtnText = submitBtn.textContent;
+            submitBtn.disabled = true;
+            submitBtn.textContent = 'Booking...';
+
             const appointmentData = {
                 nurseId: parseInt(selectedNurseId),
                 appointmentDate: selectedDate + 'T' + selectedTime,
@@ -329,6 +334,9 @@
             } catch (error) {
                 console.error('Error:', error);
                 alert('Error booking appointment');
+            } finally {
+                submitBtn.disabled = false;
+                submitBtn.textContent = originalBtnText;
             }
         });
     </script>

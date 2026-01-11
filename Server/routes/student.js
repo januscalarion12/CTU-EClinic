@@ -226,7 +226,7 @@ router.get('/bookings', authorizeRole(['student']), async (req, res) => {
       .query(`
         SELECT COUNT(*) as total
         FROM appointments
-        WHERE student_id = @student_id
+        WHERE student_id = @student_id AND (CAST(notes AS NVARCHAR(MAX)) IS NULL OR CAST(notes AS NVARCHAR(MAX)) NOT LIKE '[[]ARCHIVED]%') AND status != 'archived'
       `);
 
     const total = countResult.recordset[0].total;
@@ -242,7 +242,7 @@ router.get('/bookings', authorizeRole(['student']), async (req, res) => {
                FORMAT(b.appointment_date, 'yyyy-MM-ddTHH:mm:ss') as appointment_date_iso
         FROM appointments b
         JOIN nurses n ON b.nurse_id = n.id
-        WHERE b.student_id = @student_id
+        WHERE b.student_id = @student_id AND (CAST(b.notes AS NVARCHAR(MAX)) IS NULL OR CAST(b.notes AS NVARCHAR(MAX)) NOT LIKE '[[]ARCHIVED]%') AND b.status != 'archived'
         ORDER BY b.appointment_date DESC
         OFFSET @offset ROWS FETCH NEXT @limit ROWS ONLY
       `);
@@ -405,6 +405,22 @@ router.post('/bookings', authorizeRole(['student']), rateLimit(), upload.array('
       });
     }
 
+    // Check if the student already has an appointment at this exact time
+    const duplicateCheck = pool.request();
+    const duplicateResult = await duplicateCheck
+      .input('student_id', sql.Int, studentId)
+      .input('appointment_date', sql.NVarChar, appointmentDate)
+      .query(`
+        SELECT id FROM appointments 
+        WHERE student_id = @student_id 
+        AND appointment_date = @appointment_date 
+        AND status IN ('pending', 'confirmed')
+      `);
+
+    if (duplicateResult.recordset.length > 0) {
+      return res.status(400).json({ message: 'You already have an appointment booked for this time.' });
+    }
+
     const insertRequest = pool.request();
     const result = await insertRequest
       .input('student_id', sql.Int, studentId)
@@ -529,7 +545,7 @@ router.get('/reports', authorizeRole(['student']), async (req, res) => {
         SELECT r.*, n.name as nurse_name
         FROM reports r
         JOIN nurses n ON r.nurse_id = n.id
-        WHERE r.student_id = @student_id
+        WHERE r.student_id = @student_id AND r.report_type NOT LIKE '%_archived'
         ORDER BY r.created_at DESC
       `);
 

@@ -27,11 +27,15 @@ document.addEventListener('DOMContentLoaded', function() {
         }
 
         // Role-specific field display
-        const roleSelect = document.getElementById('role');
-        if (roleSelect) {
-            roleSelect.addEventListener('change', function() {
-                toggleRoleSpecificFields();
-            });
+        const roleElement = document.getElementById('role');
+        if (roleElement) {
+            if (roleElement.tagName === 'SELECT') {
+                roleElement.addEventListener('change', function() {
+                    toggleRoleSpecificFields();
+                });
+            }
+            // Run once on load to set initial state
+            toggleRoleSpecificFields();
         }
 
         // Auto-capitalize first letter for name fields and suffix

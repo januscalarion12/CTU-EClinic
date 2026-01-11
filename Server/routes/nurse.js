@@ -317,7 +317,7 @@ router.get('/reports', authorizeRole(['nurse']), async (req, res) => {
         FROM reports r
         JOIN students s ON r.student_id = s.id
         LEFT JOIN users u ON s.user_id = u.id
-        WHERE r.nurse_id = @nurse_id
+        WHERE r.nurse_id = @nurse_id AND r.report_type NOT LIKE '%_archived'
         ORDER BY r.created_at DESC
       `);
 
@@ -340,7 +340,7 @@ router.post('/reports', authorizeRole(['nurse']), async (req, res) => {
     const result = await insertRequest
       .input('student_id', sql.Int, parseInt(studentId))
       .input('nurse_id', sql.Int, nurseId)
-      .input('report_type', sql.NVarChar(20), reportType)
+      .input('report_type', sql.NVarChar(50), reportType)
       .input('title', sql.NVarChar(255), title || 'Health Report')
       .input('description', sql.NVarChar(sql.MAX), description || null)
       .input('findings', sql.NVarChar(sql.MAX), findings || null)
@@ -700,14 +700,17 @@ router.post('/appointments/:id/archive', authorizeRole(['nurse']), async (req, r
     }
 
     const currentNotes = verifyResult.recordset[0].notes || '';
-    const archivedNotes = `[ARCHIVED] ${currentNotes}`.trim();
+    let archivedNotes = currentNotes;
+    if (!currentNotes.startsWith('[ARCHIVED]')) {
+      archivedNotes = `[ARCHIVED] ${currentNotes}`.trim();
+    }
 
-    // Mark as archived in notes
+    // Mark as archived in notes and set is_archived flag
     const updateRequest = transaction.request();
     const updateResult = await updateRequest
       .input('appointment_id', sql.Int, appointmentId)
       .input('notes', sql.NVarChar(sql.MAX), archivedNotes)
-      .query('UPDATE appointments SET notes = @notes WHERE id = @appointment_id');
+      .query('UPDATE appointments SET notes = @notes, is_archived = 1, updated_at = GETDATE() WHERE id = @appointment_id');
 
     if (updateResult.rowsAffected[0] === 0) {
       await transaction.rollback();
@@ -754,12 +757,12 @@ router.post('/appointments/:id/restore', authorizeRole(['nurse']), async (req, r
     const currentNotes = verifyResult.recordset[0].notes || '';
     const restoredNotes = currentNotes.replace('[ARCHIVED]', '').trim();
 
-    // Mark as restored (remove prefix from notes)
+    // Mark as restored (remove prefix from notes and clear is_archived flag)
     const updateRequest = transaction.request();
     const updateResult = await updateRequest
       .input('appointment_id', sql.Int, appointmentId)
       .input('notes', sql.NVarChar(sql.MAX), restoredNotes || null)
-      .query('UPDATE appointments SET notes = @notes WHERE id = @appointment_id');
+      .query('UPDATE appointments SET notes = @notes, is_archived = 0, updated_at = GETDATE() WHERE id = @appointment_id');
 
     if (updateResult.rowsAffected[0] === 0) {
       await transaction.rollback();
@@ -799,7 +802,7 @@ router.get('/appointments/archived', authorizeRole(['nurse']), async (req, res) 
       INNER JOIN students s ON a.student_id = s.id
       LEFT JOIN users u ON s.user_id = u.id
       LEFT JOIN medical_records mr ON a.id = mr.appointment_id
-      WHERE a.nurse_id = @nurse_id AND a.notes LIKE '[ARCHIVED]%'
+      WHERE a.nurse_id = @nurse_id AND (CAST(a.notes AS NVARCHAR(MAX)) LIKE '[[]ARCHIVED]%' OR a.status = 'archived' OR a.is_archived = 1)
       ORDER BY a.appointment_date DESC
     `;
 
@@ -810,7 +813,7 @@ router.get('/appointments/archived', authorizeRole(['nurse']), async (req, res) 
     const formattedAppointments = result.recordset.map(apt => ({
       ...apt,
       appointment_date: apt.appointment_date_iso || apt.appointment_date,
-      notes: apt.notes.replace('[ARCHIVED]', '').trim()
+      notes: (apt.notes || '').replace('[ARCHIVED]', '').trim()
     }));
 
     res.json(formattedAppointments);
@@ -879,13 +882,11 @@ router.get('/appointments', authorizeRole(['nurse']), async (req, res) => {
         a.status,
         a.created_at,
         a.notes,
-        a.qr_code,
-        mr.id as record_id
+        a.qr_code
       FROM appointments a
       INNER JOIN students s ON a.student_id = s.id
       LEFT JOIN users u ON s.user_id = u.id
-      LEFT JOIN medical_records mr ON a.id = mr.appointment_id
-      WHERE a.nurse_id = @nurse_id AND (a.notes IS NULL OR a.notes NOT LIKE '[ARCHIVED]%')
+      WHERE a.nurse_id = @nurse_id AND (a.notes IS NULL OR CAST(a.notes AS NVARCHAR(MAX)) NOT LIKE '[[]ARCHIVED]%') AND a.status != 'archived' AND (a.is_archived IS NULL OR a.is_archived = 0)
     `;
 
     const request = pool.request().input('nurse_id', sql.Int, nurseId);
@@ -1046,6 +1047,8 @@ router.get('/dashboard-stats', authorizeRole(['nurse']), async (req, res) => {
         WHERE nurse_id = @nurse_id
           AND CAST(appointment_date AS DATE) = @today
           AND status IN ('confirmed', 'pending')
+          AND (CAST(notes AS NVARCHAR(MAX)) IS NULL OR CAST(notes AS NVARCHAR(MAX)) NOT LIKE '[[]ARCHIVED]%')
+          AND status != 'archived'
       `);
 
     // Get pending records (medical records that need attention)
@@ -1059,6 +1062,8 @@ router.get('/dashboard-stats', authorizeRole(['nurse']), async (req, res) => {
         WHERE a.nurse_id = @nurse_id
           AND mr.follow_up_required = 1
           AND (mr.follow_up_date IS NULL OR mr.follow_up_date >= GETDATE())
+          AND (CAST(mr.notes AS NVARCHAR(MAX)) IS NULL OR CAST(mr.notes AS NVARCHAR(MAX)) NOT LIKE '[[]ARCHIVED]%')
+          AND mr.record_type NOT LIKE '%_archived'
       `);
 
     // Get total students (assigned OR had appointment)
@@ -1070,7 +1075,7 @@ router.get('/dashboard-stats', authorizeRole(['nurse']), async (req, res) => {
         FROM (
           SELECT student_id FROM nurse_students WHERE nurse_id = @nurse_id AND is_active = 1
           UNION
-          SELECT student_id FROM appointments WHERE nurse_id = @nurse_id
+          SELECT student_id FROM appointments WHERE nurse_id = @nurse_id AND (CAST(notes AS NVARCHAR(MAX)) IS NULL OR CAST(notes AS NVARCHAR(MAX)) NOT LIKE '[[]ARCHIVED]%') AND status != 'archived'
         ) combined
       `);
 
@@ -1097,6 +1102,8 @@ router.get('/dashboard-stats', authorizeRole(['nurse']), async (req, res) => {
         WHERE nurse_id = @nurse_id
           AND appointment_date >= DATEADD(day, -7, GETDATE())
           AND status IN ('confirmed', 'completed')
+          AND (CAST(notes AS NVARCHAR(MAX)) IS NULL OR CAST(notes AS NVARCHAR(MAX)) NOT LIKE '[[]ARCHIVED]%')
+          AND status != 'archived'
       `);
 
     // Get student visits (unique students seen in last 30 days)
@@ -1109,6 +1116,8 @@ router.get('/dashboard-stats', authorizeRole(['nurse']), async (req, res) => {
         WHERE nurse_id = @nurse_id
           AND appointment_date >= DATEADD(day, -30, GETDATE())
           AND status IN ('confirmed', 'completed')
+          AND (CAST(notes AS NVARCHAR(MAX)) IS NULL OR CAST(notes AS NVARCHAR(MAX)) NOT LIKE '[[]ARCHIVED]%')
+          AND status != 'archived'
       `);
 
     // Get average daily appointments (last 30 days)
@@ -1123,6 +1132,8 @@ router.get('/dashboard-stats', authorizeRole(['nurse']), async (req, res) => {
           WHERE nurse_id = @nurse_id
             AND appointment_date >= DATEADD(day, -30, GETDATE())
             AND status IN ('confirmed', 'completed')
+            AND (CAST(notes AS NVARCHAR(MAX)) IS NULL OR CAST(notes AS NVARCHAR(MAX)) NOT LIKE '[[]ARCHIVED]%')
+            AND status != 'archived'
           GROUP BY CAST(appointment_date AS DATE)
         ) daily_stats
       `);

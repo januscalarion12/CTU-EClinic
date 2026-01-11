@@ -79,8 +79,8 @@ CREATE TABLE nurse_students (
     assigned_date DATETIME2 DEFAULT GETDATE(),
     is_active BIT DEFAULT 1,
     created_at DATETIME2 DEFAULT GETDATE(),
-    FOREIGN KEY (nurse_id) REFERENCES nurses(id) ON DELETE NO ACTION ON UPDATE NO ACTION,
-    FOREIGN KEY (student_id) REFERENCES students(id) ON DELETE NO ACTION ON UPDATE NO ACTION,
+    FOREIGN KEY (nurse_id) REFERENCES nurses(id) ON DELETE CASCADE ON UPDATE NO ACTION,
+    FOREIGN KEY (student_id) REFERENCES students(id) ON DELETE CASCADE ON UPDATE NO ACTION,
     UNIQUE (nurse_id, student_id)
 );
 
@@ -97,7 +97,7 @@ CREATE TABLE appointments (
     symptoms NVARCHAR(MAX),
     additional_notes NVARCHAR(MAX),
     attachments NVARCHAR(MAX),
-    status NVARCHAR(20) DEFAULT 'pending' CHECK (status IN ('pending', 'confirmed', 'completed', 'cancelled', 'no_show')),
+    status NVARCHAR(20) DEFAULT 'pending' CHECK (status IN ('pending', 'confirmed', 'completed', 'cancelled', 'no_show', 'archived')),
     check_in_time DATETIME2,
     check_out_time DATETIME2,
     qr_check_in BIT DEFAULT 0,
@@ -105,7 +105,8 @@ CREATE TABLE appointments (
     notes NVARCHAR(MAX),
     created_at DATETIME2 DEFAULT GETDATE(),
     updated_at DATETIME2 DEFAULT GETDATE(),
-    FOREIGN KEY (student_id) REFERENCES students(id) ON DELETE NO ACTION,
+    is_archived BIT DEFAULT 0,
+    FOREIGN KEY (student_id) REFERENCES students(id) ON DELETE CASCADE,
     FOREIGN KEY (nurse_id) REFERENCES nurses(id) ON DELETE NO ACTION
 );
 
@@ -121,7 +122,7 @@ CREATE TABLE medical_records (
     nurse_id INT NOT NULL,
     appointment_id INT,
     visit_date DATETIME2 NOT NULL,
-    record_type NVARCHAR(20) NOT NULL CHECK (record_type IN ('consultation', 'checkup', 'emergency', 'follow_up', 'vaccination')),
+    record_type NVARCHAR(50) NOT NULL CHECK (record_type IN ('consultation', 'checkup', 'emergency', 'follow_up', 'vaccination', 'consultation_archived', 'checkup_archived', 'emergency_archived', 'follow_up_archived', 'vaccination_archived')),
     symptoms NVARCHAR(MAX),
     diagnosis NVARCHAR(MAX),
     treatment NVARCHAR(MAX),
@@ -132,9 +133,9 @@ CREATE TABLE medical_records (
     follow_up_date DATE,
     created_at DATETIME2 DEFAULT GETDATE(),
     updated_at DATETIME2 DEFAULT GETDATE(),
-    FOREIGN KEY (student_id) REFERENCES students(id) ON DELETE NO ACTION,
+    FOREIGN KEY (student_id) REFERENCES students(id) ON DELETE CASCADE,
     FOREIGN KEY (nurse_id) REFERENCES nurses(id) ON DELETE NO ACTION,
-    FOREIGN KEY (appointment_id) REFERENCES appointments(id) ON DELETE SET NULL
+    FOREIGN KEY (appointment_id) REFERENCES appointments(id) ON DELETE NO ACTION
 );
 
 CREATE INDEX idx_medical_records_student_id ON medical_records(student_id);
@@ -164,7 +165,7 @@ CREATE TABLE reports (
     id INT IDENTITY(1,1) PRIMARY KEY,
     student_id INT NOT NULL,
     nurse_id INT NOT NULL,
-    report_type NVARCHAR(20) NOT NULL CHECK (report_type IN ('health_check', 'vaccination', 'screening', 'consultation', 'emergency')),
+    report_type NVARCHAR(50) NOT NULL CHECK (report_type IN ('health_check', 'vaccination', 'screening', 'consultation', 'emergency', 'health_check_archived', 'vaccination_archived', 'screening_archived', 'consultation_archived', 'emergency_archived')),
     title NVARCHAR(255) NOT NULL,
     description NVARCHAR(MAX),
     findings NVARCHAR(MAX),
@@ -173,7 +174,7 @@ CREATE TABLE reports (
     is_confidential BIT DEFAULT 0,
     created_at DATETIME2 DEFAULT GETDATE(),
     updated_at DATETIME2 DEFAULT GETDATE(),
-    FOREIGN KEY (student_id) REFERENCES students(id) ON DELETE NO ACTION,
+    FOREIGN KEY (student_id) REFERENCES students(id) ON DELETE CASCADE,
     FOREIGN KEY (nurse_id) REFERENCES nurses(id) ON DELETE NO ACTION
 );
 
@@ -194,7 +195,7 @@ CREATE TABLE notifications (
     related_id INT,
     related_type NVARCHAR(50),
     created_at DATETIME2 DEFAULT GETDATE(),
-    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE NO ACTION
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 );
 
 CREATE INDEX idx_notifications_user_id ON notifications(user_id);
@@ -236,7 +237,7 @@ CREATE TABLE appointment_waiting_list (
     expires_at DATETIME2,
     created_at DATETIME2 DEFAULT GETDATE(),
     updated_at DATETIME2 DEFAULT GETDATE(),
-    FOREIGN KEY (student_id) REFERENCES students(id) ON DELETE NO ACTION,
+    FOREIGN KEY (student_id) REFERENCES students(id) ON DELETE CASCADE,
     FOREIGN KEY (nurse_id) REFERENCES nurses(id) ON DELETE NO ACTION
 );
 

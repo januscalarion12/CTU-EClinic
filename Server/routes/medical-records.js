@@ -44,7 +44,7 @@ router.get('/student/:studentId', authorizeRole(['nurse']), async (req, res) => 
         JOIN students s ON mr.student_id = s.id
         LEFT JOIN users u ON s.user_id = u.id
         LEFT JOIN appointments a ON mr.appointment_id = a.id
-        WHERE mr.student_id = @student_id AND (mr.notes IS NULL OR mr.notes NOT LIKE '[ARCHIVED]%')
+        WHERE mr.student_id = @student_id AND (CAST(mr.notes AS NVARCHAR(MAX)) NOT LIKE '[[]ARCHIVED]%') AND mr.record_type NOT LIKE '%_archived'
         ORDER BY mr.visit_date DESC, mr.created_at DESC
       `);
 
@@ -111,7 +111,7 @@ router.post('/', authorizeRole(['nurse']), async (req, res) => {
       .input('nurse_id', sql.Int, nurseId)
       .input('appointment_id', sql.Int, (appointmentId && !isNaN(parseInt(appointmentId))) ? parseInt(appointmentId) : null)
       .input('visit_date', sql.DateTime2, visitDate ? new Date(visitDate) : new Date())
-      .input('record_type', sql.NVarChar(20), (recordType || '').toLowerCase().trim())
+      .input('record_type', sql.NVarChar(50), (recordType || '').toLowerCase().trim())
       .input('symptoms', sql.NVarChar(sql.MAX), symptoms || null)
       .input('diagnosis', sql.NVarChar(sql.MAX), diagnosis || null)
       .input('treatment', sql.NVarChar(sql.MAX), treatment || null)
@@ -199,7 +199,7 @@ router.put('/:id', authorizeRole(['nurse']), async (req, res) => {
     await updateRequest
       .input('record_id', sql.Int, recordId)
       .input('visit_date', sql.DateTime2, visitDate ? new Date(visitDate) : null)
-      .input('record_type', sql.NVarChar(20), (recordType || '').toLowerCase().trim())
+      .input('record_type', sql.NVarChar(50), (recordType || '').toLowerCase().trim())
       .input('symptoms', sql.NVarChar(sql.MAX), symptoms || null)
       .input('diagnosis', sql.NVarChar(sql.MAX), diagnosis || null)
       .input('treatment', sql.NVarChar(sql.MAX), treatment || null)
@@ -260,11 +260,10 @@ router.delete('/:id', authorizeRole(['nurse']), async (req, res) => {
       .query(`
         UPDATE medical_records 
         SET notes = CASE 
-            WHEN notes IS NULL THEN '[ARCHIVED]' 
-            WHEN notes LIKE '[ARCHIVED]%' THEN notes 
-            ELSE '[ARCHIVED] ' + CAST(notes AS NVARCHAR(MAX)) 
-        END,
-        updated_at = GETDATE()
+              WHEN CAST(notes AS NVARCHAR(MAX)) LIKE '[[]ARCHIVED]%' THEN CAST(notes AS NVARCHAR(MAX))
+              ELSE '[ARCHIVED] ' + ISNULL(CAST(notes AS NVARCHAR(MAX)), '')
+            END,
+            updated_at = GETDATE()
         WHERE id = @record_id
       `);
 
@@ -343,7 +342,7 @@ router.get('/recent', authorizeRole(['nurse']), async (req, res) => {
         JOIN students s ON mr.student_id = s.id
         LEFT JOIN users u ON s.user_id = u.id
         JOIN nurses n ON mr.nurse_id = n.id
-        WHERE mr.nurse_id = @nurse_id AND (mr.notes IS NULL OR mr.notes NOT LIKE '[ARCHIVED]%')
+        WHERE mr.nurse_id = @nurse_id AND (CAST(mr.notes AS NVARCHAR(MAX)) NOT LIKE '[[]ARCHIVED]%') AND mr.record_type NOT LIKE '%_archived'
         ORDER BY mr.created_at DESC
       `);
 
@@ -375,7 +374,7 @@ router.get('/archived/all', authorizeRole(['nurse']), async (req, res) => {
         JOIN students s ON mr.student_id = s.id
         LEFT JOIN users u ON s.user_id = u.id
         JOIN nurses n ON mr.nurse_id = n.id
-        WHERE mr.nurse_id = @nurse_id AND mr.notes LIKE '[ARCHIVED]%'
+        WHERE mr.nurse_id = @nurse_id AND (CAST(mr.notes AS NVARCHAR(MAX)) LIKE '[[]ARCHIVED]%' OR mr.record_type LIKE '%_archived')
         ORDER BY mr.updated_at DESC
       `);
 
@@ -423,7 +422,9 @@ router.post('/:id/restore', authorizeRole(['nurse']), async (req, res) => {
       .input('notes', sql.NVarChar, newNotes || null)
       .query(`
         UPDATE medical_records 
-        SET notes = @notes, updated_at = GETDATE()
+        SET notes = @notes, 
+            record_type = REPLACE(record_type, '_archived', ''),
+            updated_at = GETDATE()
         WHERE id = @record_id
       `);
 

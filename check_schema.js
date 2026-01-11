@@ -8,33 +8,25 @@ const config = {
     database: process.env.DB_NAME || 'CTU',
     options: {
         encrypt: true,
-        trustServerCertificate: true
+        trustServerCertificate: true,
+        requestTimeout: 120000
     }
 };
 
 async function run() {
     try {
         let pool = await sql.connect(config);
-        console.log('--- Appointments Columns ---');
-        let appointments = await pool.request().query("SELECT COLUMN_NAME, DATA_TYPE FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = 'appointments'");
-        console.log(JSON.stringify(appointments.recordset, null, 2));
+        let dbInfo = await pool.request().query("SELECT DB_NAME() as current_db");
+        console.log('Connected to:', dbInfo.recordset[0].current_db);
+
+        console.log('--- Tables Info ---');
+        let tables = await pool.request().query("SELECT TABLE_SCHEMA, TABLE_NAME FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_NAME IN ('appointments', 'medical_records', 'reports')");
+        console.log(JSON.stringify(tables.recordset, null, 2));
+
+        console.log('--- permissions ---');
+        let res = await pool.request().query("SELECT permission_name FROM sys.fn_my_permissions(NULL, 'DATABASE')");
+        console.log(JSON.stringify(res.recordset, null, 2));
         
-        console.log('--- Students Columns ---');
-        let students = await pool.request().query("SELECT COLUMN_NAME, DATA_TYPE FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = 'students'");
-        console.log(JSON.stringify(students.recordset, null, 2));
-
-        console.log('--- Nurse Availability Columns ---');
-        let availability = await pool.request().query("SELECT COLUMN_NAME, DATA_TYPE FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = 'nurse_availability'");
-        console.log(JSON.stringify(availability.recordset, null, 2));
-
-        console.log('--- Medical Records Columns ---');
-        let records = await pool.request().query("SELECT COLUMN_NAME, DATA_TYPE FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = 'medical_records'");
-        console.log(JSON.stringify(records.recordset, null, 2));
-
-        console.log('--- Nurses Columns ---');
-        let nurses = await pool.request().query("SELECT COLUMN_NAME, DATA_TYPE FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = 'nurses'");
-        console.log(JSON.stringify(nurses.recordset, null, 2));
-
         process.exit(0);
     } catch (err) {
         console.error(err);

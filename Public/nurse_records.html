@@ -657,14 +657,12 @@
                 try {
                     const response = await fetch(`/api/medical-records/${recordId}`, {
                         method: 'DELETE',
-                        headers: {
-                            'Authorization': `Bearer ${localStorage.getItem('token')}`
-                        }
+                        credentials: 'include'
                     });
 
                     if (response.ok) {
-                        alert('Record archived successfully');
-                        loadRecords();
+                        alert('Record archived successfully!');
+                        window.location.href = 'archive.html';
                     } else {
                         const error = await response.json();
                         alert('Error archiving record: ' + error.message);

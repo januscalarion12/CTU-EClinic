@@ -73,7 +73,7 @@
                     <div class="stat-icon"><i class="fas fa-users"></i></div>
                     <div class="stat-content">
                         <h3>Total Users</h3>
-                        <p id="totalUsers">0</p>
+                        <p id="totalUsers">...</p>
                         <small class="stat-change">Registered users</small>
                     </div>
                 </div>
@@ -81,7 +81,7 @@
                     <div class="stat-icon"><i class="fas fa-user-nurse"></i></div>
                     <div class="stat-content">
                         <h3>Active Nurses</h3>
-                        <p id="totalNurses">0</p>
+                        <p id="totalNurses">...</p>
                         <small class="stat-change">On duty</small>
                     </div>
                 </div>
@@ -89,7 +89,7 @@
                     <div class="stat-icon"><i class="fas fa-graduation-cap"></i></div>
                     <div class="stat-content">
                         <h3>Registered Students</h3>
-                        <p id="totalStudents">0</p>
+                        <p id="totalStudents">...</p>
                         <small class="stat-change">Campus-wide</small>
                     </div>
                 </div>
@@ -97,7 +97,7 @@
                     <div class="stat-icon"><i class="fas fa-calendar-check"></i></div>
                     <div class="stat-content">
                         <h3>Monthly Appointments</h3>
-                        <p id="totalAppointments">0</p>
+                        <p id="totalAppointments">...</p>
                         <small class="stat-change">Current month</small>
                     </div>
                 </div>
@@ -111,19 +111,19 @@
                     <div class="health-indicators">
                         <div class="health-item">
                             <span class="health-label">Database</span>
-                            <span class="health-status">● <span class="text-success">Connected</span></span>
+                            <span class="health-status">● <span id="healthDatabase" class="text-success">...</span></span>
                         </div>
                         <div class="health-item">
                             <span class="health-label">Server Load</span>
-                            <span class="health-status">● <span class="text-success">Normal</span></span>
+                            <span class="health-status">● <span id="healthServer" class="text-success">...</span></span>
                         </div>
                         <div class="health-item">
                             <span class="health-label">Storage</span>
-                            <span class="health-status">● <span class="text-success">Available</span></span>
+                            <span class="health-status">● <span id="healthStorage" class="text-success">...</span></span>
                         </div>
                         <div class="health-item">
                             <span class="health-label">Backup</span>
-                            <span class="health-status">● <span class="text-success">Current</span></span>
+                            <span class="health-status">● <span id="healthBackup" class="text-success">...</span></span>
                         </div>
                     </div>
                     <button class="btn-secondary" onclick="viewSystemHealth()">View Details</button>
@@ -283,9 +283,45 @@
                     
                     // Load recent activity after stats
                     loadRecentActivity();
+                    // Load system health
+                    loadSystemHealth();
                 }
             } catch (error) {
                 console.error('Error loading admin stats:', error);
+            }
+        }
+
+        // Load system health status
+        async function loadSystemHealth() {
+            try {
+                const response = await fetchWithAuth('/api/admin/health');
+                if (response.ok) {
+                    const health = await response.json();
+                    
+                    const dbEl = document.getElementById('healthDatabase');
+                    const serverEl = document.getElementById('healthServer');
+                    const storageEl = document.getElementById('healthStorage');
+                    const backupEl = document.getElementById('healthBackup');
+
+                    if (dbEl) {
+                        dbEl.textContent = health.database;
+                        dbEl.className = health.database === 'Connected' ? 'text-success' : 'text-danger';
+                    }
+                    if (serverEl) {
+                        serverEl.textContent = health.serverLoad;
+                        serverEl.className = health.serverLoad === 'Normal' ? 'text-success' : 'text-warning';
+                    }
+                    if (storageEl) {
+                        storageEl.textContent = health.storage;
+                        storageEl.className = health.storage === 'Available' ? 'text-success' : 'text-warning';
+                    }
+                    if (backupEl) {
+                        backupEl.textContent = health.backup;
+                        backupEl.className = health.backup === 'Current' ? 'text-success' : 'text-warning';
+                    }
+                }
+            } catch (error) {
+                console.error('Error loading system health:', error);
             }
         }
 

@@ -303,7 +303,7 @@ router.get('/statistics', authorizeRole(['nurse', 'admin']), async (req, res) =>
     let appointmentsQuery = `
       SELECT COUNT(*) as total
       FROM appointments a
-      WHERE CAST(a.appointment_date AS DATE) >= @start_date
+      WHERE CAST(a.appointment_date AS DATE) >= @start_date AND a.status != 'archived'
     `;
 
     const appointmentsResult = await request.query(appointmentsQuery);
@@ -321,7 +321,9 @@ router.get('/statistics', authorizeRole(['nurse', 'admin']), async (req, res) =>
     let recordsQuery = `
       SELECT COUNT(*) as total
       FROM medical_records mr
-      WHERE CAST(mr.visit_date AS DATE) >= @start_date
+      WHERE CAST(mr.visit_date AS DATE) >= @start_date 
+      AND (CAST(mr.notes AS NVARCHAR(MAX)) IS NULL OR CAST(mr.notes AS NVARCHAR(MAX)) NOT LIKE '[[]ARCHIVED]%') 
+      AND mr.record_type NOT LIKE '%_archived'
     `;
 
     const recordsResult = await request.query(recordsQuery);

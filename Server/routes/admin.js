@@ -25,7 +25,7 @@ router.get('/dashboard-stats', authorizeRole(['admin']), async (req, res) => {
     
     const totalAppointmentsResult = await pool.request()
       .input('startOfMonth', sql.DateTime, startOfMonth)
-      .query('SELECT COUNT(*) as total FROM appointments WHERE created_at >= @startOfMonth');
+      .query("SELECT COUNT(*) as total FROM appointments WHERE created_at >= @startOfMonth AND (notes IS NULL OR notes NOT LIKE '[ARCHIVED]%') AND status != 'archived'");
 
     res.json({
       totalUsers: totalUsersResult.recordset[0].total,
@@ -351,6 +351,7 @@ router.get('/statistics', authorizeRole(['admin']), async (req, res) => {
     const appointmentStats = await appointmentStatsRequest.query(`
       SELECT status, COUNT(*) as count
       FROM appointments
+      WHERE (notes IS NULL OR notes NOT LIKE '[ARCHIVED]%') AND status != 'archived'
       GROUP BY status
     `);
 
@@ -365,8 +366,8 @@ router.get('/statistics', authorizeRole(['admin']), async (req, res) => {
         SELECT
           COUNT(DISTINCT CASE WHEN role = 'student' THEN id END) as new_students,
           COUNT(DISTINCT CASE WHEN role = 'nurse' THEN id END) as new_nurses,
-          (SELECT COUNT(*) FROM appointments WHERE created_at >= @thirty_days_ago) as new_appointments,
-          (SELECT COUNT(*) FROM medical_records WHERE created_at >= @thirty_days_ago) as new_records
+          (SELECT COUNT(*) FROM appointments WHERE created_at >= @thirty_days_ago AND (notes IS NULL OR notes NOT LIKE '[ARCHIVED]%') AND status != 'archived') as new_appointments,
+          (SELECT COUNT(*) FROM medical_records WHERE created_at >= @thirty_days_ago AND (notes IS NULL OR notes NOT LIKE '[ARCHIVED]%') AND record_type NOT LIKE '%_archived') as new_records
         FROM users
         WHERE created_at >= @thirty_days_ago
       `);
@@ -594,6 +595,28 @@ router.post('/settings', authorizeRole(['admin']), async (req, res) => {
   } catch (error) {
     console.error('Error updating settings:', error);
     res.status(500).json({ message: 'Error updating settings' });
+  }
+});
+
+// Get system health status
+router.get('/health', authorizeRole(['admin']), async (req, res) => {
+  try {
+    const pool = await poolPromise;
+    
+    // Check database connection
+    const dbCheck = await pool.request().query('SELECT 1 as connected');
+    const isDbConnected = dbCheck.recordset[0].connected === 1;
+
+    // Simulate other health metrics for now
+    res.json({
+      database: isDbConnected ? 'Connected' : 'Disconnected',
+      serverLoad: 'Normal',
+      storage: 'Available',
+      backup: 'Current'
+    });
+  } catch (error) {
+    console.error('Error fetching system health:', error);
+    res.status(500).json({ message: 'Error fetching system health' });
   }
 });
 
