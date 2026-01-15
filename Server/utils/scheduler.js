@@ -13,13 +13,9 @@ async function autoCancelLateAppointments() {
     const result = await request
       .input('fifteen_minutes_ago', sql.DateTime2, fifteenMinutesAgo)
       .query(`
-        SELECT a.id, a.student_id, a.nurse_id, a.appointment_date, 
-               ISNULL(NULLIF(LTRIM(RTRIM(s.name)), ''), 
-                      ISNULL(NULLIF(LTRIM(RTRIM(ISNULL(u.first_name, '') + ' ' + ISNULL(u.last_name, ''))), ''), s.student_id)) as student_name, 
-               s.email as student_email
+        SELECT a.id, a.student_id, a.nurse_id, a.appointment_date, s.name as student_name, s.email as student_email
         FROM appointments a
         JOIN students s ON a.student_id = s.id
-        LEFT JOIN users u ON s.user_id = u.id
         WHERE a.status = 'confirmed'
           AND a.check_in_time IS NULL
           AND a.appointment_date <= @fifteen_minutes_ago
@@ -88,13 +84,9 @@ async function sendAppointmentReminders() {
       .input('tomorrow_start', sql.DateTime2, tomorrowStart)
       .input('tomorrow_end', sql.DateTime2, tomorrowEnd)
       .query(`
-        SELECT a.id, a.appointment_date, a.reason, s.email, 
-               ISNULL(NULLIF(LTRIM(RTRIM(s.name)), ''), 
-                      ISNULL(NULLIF(LTRIM(RTRIM(ISNULL(u.first_name, '') + ' ' + ISNULL(u.last_name, ''))), ''), s.student_id)) as student_name, 
-               n.name as nurse_name
+        SELECT a.id, a.appointment_date, a.reason, s.email, s.name as student_name, n.name as nurse_name
         FROM appointments a
         JOIN students s ON a.student_id = s.id
-        LEFT JOIN users u ON s.user_id = u.id
         JOIN nurses n ON a.nurse_id = n.id
         WHERE a.status = 'confirmed'
           AND a.appointment_date >= @tomorrow_start

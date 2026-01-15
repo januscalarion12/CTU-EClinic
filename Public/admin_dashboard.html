@@ -335,7 +335,7 @@
 
                 if (response.ok) {
                     const data = await response.json();
-                    const logs = data.logs || [];
+                    const logs = data.auditLog || [];
 
                     if (logs.length === 0) {
                         activityList.innerHTML = '<p class="text-muted">No recent activity</p>';

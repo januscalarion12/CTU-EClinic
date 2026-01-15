@@ -18,6 +18,21 @@ async function getNurseId(userId) {
   return nurseResult.recordset[0].id;
 }
 
+// Helper function to get student ID from user ID
+async function getStudentId(userId) {
+  const pool = await poolPromise;
+  const studentRequest = pool.request();
+  const studentResult = await studentRequest
+    .input('user_id', sql.Int, userId)
+    .query('SELECT id FROM students WHERE user_id = @user_id');
+
+  if (studentResult.recordset.length === 0) {
+    throw new Error('Student profile not found');
+  }
+
+  return studentResult.recordset[0].id;
+}
+
 // Get medical records for a student
 router.get('/student/:studentId', authorizeRole(['nurse']), async (req, res) => {
   try {
@@ -58,6 +73,52 @@ router.get('/student/:studentId', authorizeRole(['nurse']), async (req, res) => 
   } catch (error) {
     console.error('Error fetching medical records:', error);
     if (error.message === 'Nurse profile not found') {
+      return res.status(404).json({ message: error.message });
+    }
+    res.status(500).json({ message: 'Error fetching medical records' });
+  }
+});
+
+// Get medical records for the logged-in student
+router.get('/mine', authorizeRole(['student']), async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const studentId = await getStudentId(userId);
+
+    const pool = await poolPromise;
+    const request = pool.request();
+    const result = await request
+      .input('student_id', sql.Int, studentId)
+      .query(`
+        SELECT mr.*,
+               n.name as nurse_name,
+               ISNULL(NULLIF(LTRIM(RTRIM(s.name)), ''), 
+                      ISNULL(NULLIF(LTRIM(RTRIM(ISNULL(u.first_name, '') + ' ' + ISNULL(u.last_name, ''))), ''), s.student_id)) as student_name,
+               s.student_id as student_id_number,
+               FORMAT(a.appointment_date, 'yyyy-MM-ddTHH:mm:ss') as appointment_date_iso,
+               FORMAT(mr.visit_date, 'yyyy-MM-ddTHH:mm:ss') as visit_date_iso,
+               a.reason as appointment_reason
+        FROM medical_records mr
+        JOIN nurses n ON mr.nurse_id = n.id
+        JOIN students s ON mr.student_id = s.id
+        LEFT JOIN users u ON s.user_id = u.id
+        LEFT JOIN appointments a ON mr.appointment_id = a.id
+        WHERE mr.student_id = @student_id
+          AND (CAST(mr.notes AS NVARCHAR(MAX)) NOT LIKE '[[]ARCHIVED]%')
+          AND mr.record_type NOT LIKE '%_archived'
+        ORDER BY mr.visit_date DESC, mr.created_at DESC
+      `);
+
+    const formattedRecords = result.recordset.map(record => ({
+      ...record,
+      appointment_date: record.appointment_date_iso || record.appointment_date,
+      visit_date: record.visit_date_iso || record.visit_date
+    }));
+
+    res.json(formattedRecords);
+  } catch (error) {
+    console.error('Error fetching student medical records:', error);
+    if (error.message === 'Student profile not found') {
       return res.status(404).json({ message: error.message });
     }
     res.status(500).json({ message: 'Error fetching medical records' });

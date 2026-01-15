@@ -3,6 +3,25 @@
 // API base URL
 const API_BASE_URL = '/api';
 
+// State for medical records UI
+let __recordsCache = [];
+let __recordsFiltered = [];
+
+// Date formatting helpers
+function formatDateTime(value) {
+    if (!value) return '';
+    const d = new Date(value);
+    if (Number.isNaN(d.getTime())) return value;
+    return d.toLocaleDateString();
+}
+
+function formatDate(value) {
+    if (!value) return '';
+    const d = new Date(value);
+    if (Number.isNaN(d.getTime())) return value;
+    return d.toLocaleDateString();
+}
+
 // DOM Content Loaded
 document.addEventListener('DOMContentLoaded', function() {
     // Initialize common functionality
@@ -584,7 +603,7 @@ async function loadRecords() {
     const loading = showLoading();
 
     try {
-        const response = await fetch(`${API_BASE_URL}/records`, {
+        const response = await fetch(`${API_BASE_URL}/medical-records/mine`, {
             headers: {
                 'Authorization': `Bearer ${localStorage.getItem('token')}`
             }
@@ -593,7 +612,10 @@ async function loadRecords() {
         const records = await response.json();
 
         if (response.ok) {
-            displayRecords(records);
+            __recordsCache = Array.isArray(records) ? records : [];
+            applyRecordFiltersAndRender();
+        } else {
+            showError(records.message || 'Failed to load records');
         }
     } catch (error) {
         showError('Failed to load records');
@@ -640,22 +662,235 @@ function displayAppointments(appointments) {
     });
 }
 
-function displayRecords(records) {
-    const container = document.getElementById('recordsContainer');
-    container.innerHTML = '';
+function displayRecordsTable(records) {
+    const tbody = document.getElementById('recordsTbody');
+    const cards = document.getElementById('recordsContainer');
+
+    if (!tbody) return;
+
+    tbody.innerHTML = '';
+    cards.style.display = 'none';
+
+    if (!records || records.length === 0) {
+        const tr = document.createElement('tr');
+        const td = document.createElement('td');
+        td.colSpan = 7;
+        td.className = 'no-appointments';
+        td.textContent = 'No medical records found.';
+        tr.appendChild(td);
+        tbody.appendChild(tr);
+        return;
+    }
 
     records.forEach(record => {
-        const recordDiv = document.createElement('div');
-        recordDiv.className = 'record-card';
-        recordDiv.innerHTML = `
-            <h4>Record for ${record.studentName}</h4>
-            <p><strong>Diagnosis:</strong> ${record.diagnosis}</p>
-            <p><strong>Treatment:</strong> ${record.treatment}</p>
-            <p><strong>Medication:</strong> ${record.medication || 'N/A'}</p>
-            <p><strong>Date:</strong> ${record.date}</p>
+        const tr = document.createElement('tr');
+        const visitDate = record.visit_date || record.visitDate || record.appointment_date || record.date || '';
+        const medications = record.medications || record.medication || '';
+        const type = record.record_type || record.recordType || '';
+        const nurse = record.nurse_name || record.nurseName || '';
+
+        tr.innerHTML = `
+            <td>${formatDateTime(visitDate) || ''}</td>
+            <td>${nurse || 'N/A'}</td>
+            <td>${record.diagnosis || 'N/A'}</td>
+            <td>${record.treatment || 'N/A'}</td>
+            <td>${medications || 'N/A'}</td>
+            <td>${type || 'N/A'}</td>
+            <td>
+                <button class="btn-small" data-action="view" title="View"><i class="fas fa-eye"></i> View</button>
+                <button class="btn-small" data-action="print" title="Print"><i class="fas fa-print"></i> Print</button>
+            </td>
         `;
-        container.appendChild(recordDiv);
+
+        // Attach record to row for actions
+        tr.__record = record;
+        tbody.appendChild(tr);
     });
+}
+
+function initializeRecordsUI() {
+    const search = document.getElementById('recordsSearch');
+    const dateFrom = document.getElementById('dateFrom');
+    const dateTo = document.getElementById('dateTo');
+    const typeFilter = document.getElementById('recordTypeFilter');
+    const sortOrder = document.getElementById('sortOrder');
+    const exportBtn = document.getElementById('exportRecords');
+    const modal = document.getElementById('recordModal');
+    const modalClose = document.getElementById('recordModalClose');
+
+    if (search) search.addEventListener('input', applyRecordFiltersAndRender);
+    if (dateFrom) dateFrom.addEventListener('change', applyRecordFiltersAndRender);
+    if (dateTo) dateTo.addEventListener('change', applyRecordFiltersAndRender);
+    if (typeFilter) typeFilter.addEventListener('change', applyRecordFiltersAndRender);
+    if (sortOrder) sortOrder.addEventListener('change', applyRecordFiltersAndRender);
+
+    if (exportBtn) exportBtn.addEventListener('click', () => {
+        window.print();
+    });
+
+    // Close modal
+    if (modalClose && modal) {
+        modalClose.addEventListener('click', () => {
+            modal.classList.remove('active');
+        });
+        modal.addEventListener('click', (e) => {
+            if (e.target === modal) modal.classList.remove('active');
+        });
+    }
+
+    // Delegate actions in table
+    const tbody = document.getElementById('recordsTbody');
+    if (tbody) {
+        tbody.addEventListener('click', (e) => {
+            const btn = e.target.closest('button');
+            if (!btn) return;
+            const tr = e.target.closest('tr');
+            const record = tr && tr.__record;
+            if (!record) return;
+
+            const action = btn.getAttribute('data-action');
+            if (action === 'view') {
+                openRecordModal(record);
+            } else if (action === 'print') {
+                printSingleRecord(record);
+            }
+        });
+    }
+}
+
+function applyRecordFiltersAndRender() {
+    const search = (document.getElementById('recordsSearch')?.value || '').toLowerCase();
+    const dateFrom = document.getElementById('dateFrom')?.value;
+    const dateTo = document.getElementById('dateTo')?.value;
+    const type = document.getElementById('recordTypeFilter')?.value || '';
+    const sortOrder = document.getElementById('sortOrder')?.value || 'desc';
+
+    let filtered = (__recordsCache || []).slice();
+
+    // Keyword search across key fields
+    if (search) {
+        filtered = filtered.filter(r => (
+            (r.diagnosis || '').toLowerCase().includes(search) ||
+            (r.treatment || '').toLowerCase().includes(search) ||
+            (r.medications || r.medication || '').toLowerCase().includes(search) ||
+            (r.notes || '').toLowerCase().includes(search)
+        ));
+    }
+
+    // Date range filter
+    const parseDate = (val) => val ? new Date(val) : null;
+    const from = parseDate(dateFrom);
+    const to = parseDate(dateTo);
+
+    if (from || to) {
+        filtered = filtered.filter(r => {
+            const dStr = r.visit_date || r.visitDate || r.appointment_date || r.date;
+            if (!dStr) return false;
+            const d = new Date(dStr);
+            if (Number.isNaN(d.getTime())) return false;
+            if (from && d < from) return false;
+            if (to) {
+                // Include entire end day
+                const end = new Date(to);
+                end.setHours(23,59,59,999);
+                if (d > end) return false;
+            }
+            return true;
+        });
+    }
+
+    // Type filter
+    if (type) {
+        filtered = filtered.filter(r => (r.record_type || r.recordType || '').toLowerCase() === type.toLowerCase());
+    }
+
+    // Sort
+    filtered.sort((a, b) => {
+        const aDate = new Date(a.visit_date || a.visitDate || a.appointment_date || a.date || 0).getTime();
+        const bDate = new Date(b.visit_date || b.visitDate || b.appointment_date || b.date || 0).getTime();
+        return (sortOrder === 'asc') ? (aDate - bDate) : (bDate - aDate);
+    });
+
+    __recordsFiltered = filtered;
+    displayRecordsTable(filtered);
+}
+
+function openRecordModal(record) {
+    const modal = document.getElementById('recordModal');
+    const title = document.getElementById('recordModalTitle');
+    const body = document.getElementById('recordModalBody');
+
+    if (!modal || !title || !body) return;
+
+    const visitDate = record.visit_date || record.visitDate || record.appointment_date || record.date || '';
+
+    title.textContent = 'Medical Record Details';
+    body.innerHTML = `
+        <div class="record-card" style="text-align:left">
+            <p><strong>Date:</strong> ${formatDateTime(visitDate) || 'N/A'}</p>
+            <p><strong>Nurse:</strong> ${record.nurse_name || record.nurseName || 'N/A'}</p>
+            <p><strong>Type:</strong> ${record.record_type || record.recordType || 'N/A'}</p>
+            <p><strong>Diagnosis:</strong> ${record.diagnosis || 'N/A'}</p>
+            <p><strong>Treatment:</strong> ${record.treatment || 'N/A'}</p>
+            <p><strong>Medications:</strong> ${record.medications || record.medication || 'N/A'}</p>
+            <p><strong>Symptoms:</strong> ${record.symptoms || 'N/A'}</p>
+            <p><strong>Vital Signs:</strong> ${record.vital_signs || 'N/A'}</p>
+            <p><strong>Notes:</strong> ${record.notes || 'N/A'}</p>
+            <p><strong>Follow Up Required:</strong> ${(record.follow_up_required ? 'Yes' : 'No')}</p>
+            ${record.follow_up_date ? `<p><strong>Follow Up Date:</strong> ${formatDateTime(record.follow_up_date)}</p>` : ''}
+            ${record.appointment_reason ? `<p><strong>Appointment Reason:</strong> ${record.appointment_reason}</p>` : ''}
+            <div class="mt-20">
+                <button class="btn-primary" id="printRecordBtn"><i class="fas fa-print"></i> Print</button>
+            </div>
+        </div>
+    `;
+
+    modal.classList.add('active');
+
+    const printBtn = document.getElementById('printRecordBtn');
+    if (printBtn) {
+        printBtn.onclick = () => printSingleRecord(record);
+    }
+}
+
+function printSingleRecord(record) {
+    const visitDate = record.visit_date || record.visitDate || record.appointment_date || record.date || '';
+    const popup = window.open('', '_blank', 'width=800,height=900');
+    if (!popup) return;
+
+    popup.document.write(`
+        <html>
+        <head>
+            <title>Medical Record</title>
+            <style>
+                body { font-family: Arial, sans-serif; padding: 20px; }
+                h2 { margin-top: 0; }
+                .line { border-top: 1px solid #ddd; margin: 15px 0; }
+                p { margin: 6px 0; }
+            </style>
+        </head>
+        <body>
+            <h2>Medical Record</h2>
+            <div class="line"></div>
+            <p><strong>Date:</strong> ${formatDateTime(visitDate) || 'N/A'}</p>
+            <p><strong>Nurse:</strong> ${record.nurse_name || record.nurseName || 'N/A'}</p>
+            <p><strong>Type:</strong> ${record.record_type || record.recordType || 'N/A'}</p>
+            <p><strong>Diagnosis:</strong> ${record.diagnosis || 'N/A'}</p>
+            <p><strong>Treatment:</strong> ${record.treatment || 'N/A'}</p>
+            <p><strong>Medications:</strong> ${record.medications || record.medication || 'N/A'}</p>
+            <p><strong>Symptoms:</strong> ${record.symptoms || 'N/A'}</p>
+            <p><strong>Vital Signs:</strong> ${record.vital_signs || 'N/A'}</p>
+            <p><strong>Notes:</strong> ${record.notes || 'N/A'}</p>
+            <p><strong>Follow Up Required:</strong> ${(record.follow_up_required ? 'Yes' : 'No')}</p>
+            ${record.follow_up_date ? `<p><strong>Follow Up Date:</strong> ${formatDateTime(record.follow_up_date)}</p>` : ''}
+            ${record.appointment_reason ? `<p><strong>Appointment Reason:</strong> ${record.appointment_reason}</p>` : ''}
+        </body>
+        </html>
+    `);
+
+    popup.document.close();
+    popup.focus();
+    popup.print();
 }
 
 function displayAvailability(availability) {

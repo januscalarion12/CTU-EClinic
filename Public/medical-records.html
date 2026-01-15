@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Medical Records - Clinic Management System</title>
+    <title>Medical Records - CTU Bantayan E-Clinic</title>
     <link rel="stylesheet" href="css/style.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
 </head>
@@ -38,7 +38,7 @@
     <!-- Sidebar Navigation -->
     <nav class="sidebar" id="sidebar">
         <div class="sidebar-header">
-            <h1>Clinic Management</h1>
+            <h1>CTU Bantayan E-Clinic</h1>
         </div>
         <div class="sidebar-nav">
             <ul>
@@ -65,16 +65,69 @@
     <main class="main-content">
         <div class="container">
             <h2>My Medical Records</h2>
+
+            <!-- Toolbar: search, filters, sort, export -->
+            <div class="list-header">
+                <div class="search-input-group">
+                    <i class="fas fa-search search-icon"></i>
+                    <input type="text" id="recordsSearch" class="search-input" placeholder="Search diagnosis, treatment, medications, notes..." />
+                </div>
+                <div class="filter-group">
+                    <input type="date" id="dateFrom" class="filter-select" />
+                    <input type="date" id="dateTo" class="filter-select" />
+                    <select id="recordTypeFilter" class="filter-select">
+                        <option value="">All Types</option>
+                        <option value="consultation">Consultation</option>
+                        <option value="follow-up">Follow-up</option>
+                        <option value="emergency">Emergency</option>
+                    </select>
+                    <select id="sortOrder" class="filter-select">
+                        <option value="desc">Newest first</option>
+                        <option value="asc">Oldest first</option>
+                    </select>
+                    <button id="exportRecords" class="btn-secondary">Print/Export</button>
+                </div>
+            </div>
+
+            <!-- Records table -->
             <div class="records-list">
-                <div id="recordsContainer">
-                    <!-- Medical records will be loaded here -->
+                <table id="recordsTable">
+                    <thead>
+                        <tr>
+                            <th>Date</th>
+                            <th>Nurse</th>
+                            <th>Diagnosis</th>
+                            <th>Treatment</th>
+                            <th>Medications</th>
+                            <th>Type</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody id="recordsTbody">
+                        <!-- Rows rendered by JS -->
+                    </tbody>
+                </table>
+                <!-- Fallback cards container (used if JS chooses the card layout) -->
+                <div id="recordsContainer" style="display:none"></div>
+            </div>
+        </div>
+
+        <!-- Details Modal -->
+        <div class="modal" id="recordModal">
+            <div class="modal-content large-modal">
+                <div class="modal-header">
+                    <h3 id="recordModalTitle">Record Details</h3>
+                    <button class="btn-close" id="recordModalClose">&times;</button>
+                </div>
+                <div class="modal-body" id="recordModalBody">
+                    <!-- Populated dynamically -->
                 </div>
             </div>
         </div>
     </main>
 
     <footer>
-        <p>&copy; <span id="currentYear"></span> Clinic Management System. All rights reserved.</p>
+        <p>&copy; <span id="currentYear"></span> CTU Bantayan E-Clinic. All rights reserved.</p>
     </footer>
 
     <script src="js/common.js"></script>
@@ -106,8 +159,11 @@
             }
         });
 
-        // Load records on page load
+        // Page-specific initialization for records CRUD UI
         document.addEventListener('DOMContentLoaded', function() {
+            if (typeof initializeRecordsUI === 'function') {
+                initializeRecordsUI();
+            }
             if (typeof loadRecords === 'function') {
                 loadRecords();
             }

@@ -25,7 +25,7 @@ router.get('/dashboard-stats', authorizeRole(['admin']), async (req, res) => {
     
     const totalAppointmentsResult = await pool.request()
       .input('startOfMonth', sql.DateTime, startOfMonth)
-      .query("SELECT COUNT(*) as total FROM appointments WHERE created_at >= @startOfMonth AND (notes IS NULL OR notes NOT LIKE '[ARCHIVED]%') AND status != 'archived'");
+      .query("SELECT COUNT(*) as total FROM appointments WHERE created_at >= @startOfMonth AND (notes IS NULL OR CAST(notes AS NVARCHAR(MAX)) NOT LIKE '[[]ARCHIVED]%') AND status != 'archived'");
 
     res.json({
       totalUsers: totalUsersResult.recordset[0].total,
@@ -291,6 +291,56 @@ router.put('/users/:id', authorizeRole(['admin']), async (req, res) => {
   }
 });
 
+// Get user by ID
+router.get('/users/:id', authorizeRole(['admin']), async (req, res) => {
+  try {
+    const userId = req.params.id;
+    const pool = await poolPromise;
+
+    const result = await pool.request()
+      .input('id', sql.Int, userId)
+      .query(`
+        SELECT
+          u.id,
+          u.first_name,
+          u.middle_name,
+          u.last_name,
+          u.extension_name,
+          u.email,
+          u.contact_number,
+          u.role,
+          u.ctu_id,
+          u.school_year,
+          u.school_level,
+          u.department,
+          u.is_email_confirmed,
+          u.created_at,
+          CASE
+            WHEN u.role = 'student' THEN s.student_id
+            WHEN u.role = 'nurse' THEN n.license_number
+            ELSE NULL
+          END as role_specific_id,
+          CASE
+            WHEN u.role = 'nurse' THEN n.specialization
+            ELSE NULL
+          END as specialization
+        FROM users u
+        LEFT JOIN students s ON u.id = s.user_id AND u.role = 'student'
+        LEFT JOIN nurses n ON u.id = n.user_id AND u.role = 'nurse'
+        WHERE u.id = @id
+      `);
+
+    if (result.recordset.length === 0) {
+      return res.status(404).json({ message: 'User not found' });
+    }
+
+    res.json(result.recordset[0]);
+  } catch (error) {
+    console.error('Error fetching user details:', error);
+    res.status(500).json({ message: 'Error fetching user details' });
+  }
+});
+
 // Delete user
 router.delete('/users/:id', authorizeRole(['admin']), async (req, res) => {
   try {
@@ -304,21 +354,112 @@ router.delete('/users/:id', authorizeRole(['admin']), async (req, res) => {
       .query(`
         SELECT COUNT(*) as count
         FROM appointments
-        WHERE (student_id = @user_id OR nurse_id = (SELECT id FROM nurses WHERE user_id = @user_id))
-          AND status IN ('pending', 'confirmed')
+        WHERE (
+          student_id IN (SELECT id FROM students WHERE user_id = @user_id) 
+          OR 
+          nurse_id IN (SELECT id FROM nurses WHERE user_id = @user_id)
+        )
+        AND status IN ('pending', 'confirmed')
       `);
 
     if (appointmentsCheck.recordset[0].count > 0) {
       return res.status(409).json({ message: 'Cannot delete user with active appointments' });
     }
 
-    // Soft delete by updating role to 'deleted' or actually delete
-    const deleteRequest = pool.request();
-    await deleteRequest
-      .input('id', sql.Int, userId)
-      .query('DELETE FROM users WHERE id = @id');
+    // Start a transaction for safe deletion
+    const transaction = new sql.Transaction(pool);
+    await transaction.begin();
 
-    res.json({ message: 'User deleted successfully' });
+    try {
+      // 1. Get user role to know which related tables to clean
+      const userResult = await transaction.request()
+        .input('id', sql.Int, userId)
+        .query('SELECT role FROM users WHERE id = @id');
+      
+      if (userResult.recordset.length === 0) {
+        await transaction.rollback();
+        return res.status(404).json({ message: 'User not found' });
+      }
+
+      const role = userResult.recordset[0].role;
+
+      // 2. Delete role-specific data first
+      if (role === 'student') {
+        const studentIdQuery = '(SELECT id FROM students WHERE user_id = @user_id)';
+        
+        await transaction.request()
+          .input('user_id', sql.Int, userId)
+          .query(`DELETE FROM nurse_students WHERE student_id IN ${studentIdQuery}`);
+
+        await transaction.request()
+          .input('user_id', sql.Int, userId)
+          .query(`DELETE FROM appointment_waiting_list WHERE student_id IN ${studentIdQuery}`);
+
+        await transaction.request()
+          .input('user_id', sql.Int, userId)
+          .query(`DELETE FROM reports WHERE student_id IN ${studentIdQuery}`);
+
+        await transaction.request()
+          .input('user_id', sql.Int, userId)
+          .query('DELETE FROM students WHERE user_id = @user_id');
+      } else if (role === 'nurse') {
+        // For nurses, handle all dependent tables with NO ACTION constraints
+        const nurseIdQuery = '(SELECT id FROM nurses WHERE user_id = @user_id)';
+        
+        await transaction.request()
+          .input('user_id', sql.Int, userId)
+          .query(`DELETE FROM nurse_students WHERE nurse_id IN ${nurseIdQuery}`);
+
+        await transaction.request()
+          .input('user_id', sql.Int, userId)
+          .query(`DELETE FROM nurse_availability WHERE nurse_id IN ${nurseIdQuery}`);
+        
+        await transaction.request()
+          .input('user_id', sql.Int, userId)
+          .query(`DELETE FROM appointment_waiting_list WHERE nurse_id IN ${nurseIdQuery}`);
+
+        await transaction.request()
+          .input('user_id', sql.Int, userId)
+          .query(`DELETE FROM medical_records WHERE nurse_id IN ${nurseIdQuery}`);
+
+        await transaction.request()
+          .input('user_id', sql.Int, userId)
+          .query(`DELETE FROM reports WHERE nurse_id IN ${nurseIdQuery}`);
+
+        await transaction.request()
+          .input('user_id', sql.Int, userId)
+          .query(`DELETE FROM appointments WHERE nurse_id IN ${nurseIdQuery}`);
+        
+        await transaction.request()
+          .input('user_id', sql.Int, userId)
+          .query('DELETE FROM nurses WHERE user_id = @user_id');
+      }
+
+      // 3. Delete from general user-related tables
+      await transaction.request()
+        .input('user_id', sql.Int, userId)
+        .query('DELETE FROM notifications WHERE user_id = @user_id');
+
+      // 4. Finally delete from users table
+      await transaction.request()
+        .input('id', sql.Int, userId)
+        .query('DELETE FROM users WHERE id = @id');
+
+      await transaction.commit();
+      res.json({ message: 'User and all related records deleted successfully' });
+    } catch (err) {
+      console.error('Transaction error during user deletion:', err);
+      await transaction.rollback();
+      
+      // Handle foreign key constraint errors specifically (SQL Error 547)
+      if (err.number === 547 || err.code === 'EREQUEST' && err.message.includes('REFERENCE constraint')) {
+        return res.status(409).json({ 
+          message: 'Cannot delete user because they have associated records (appointments, medical history, etc.). Consider deactivating them instead.' 
+        });
+      }
+      
+      throw err; // Re-throw to be caught by outer try-catch
+    }
   } catch (error) {
     console.error('Error deleting user:', error);
     res.status(500).json({ message: 'Error deleting user' });
@@ -351,7 +492,7 @@ router.get('/statistics', authorizeRole(['admin']), async (req, res) => {
     const appointmentStats = await appointmentStatsRequest.query(`
       SELECT status, COUNT(*) as count
       FROM appointments
-      WHERE (notes IS NULL OR notes NOT LIKE '[ARCHIVED]%') AND status != 'archived'
+      WHERE (notes IS NULL OR CAST(notes AS NVARCHAR(MAX)) NOT LIKE '[[]ARCHIVED]%') AND status != 'archived'
       GROUP BY status
     `);
 
@@ -366,8 +507,8 @@ router.get('/statistics', authorizeRole(['admin']), async (req, res) => {
         SELECT
           COUNT(DISTINCT CASE WHEN role = 'student' THEN id END) as new_students,
           COUNT(DISTINCT CASE WHEN role = 'nurse' THEN id END) as new_nurses,
-          (SELECT COUNT(*) FROM appointments WHERE created_at >= @thirty_days_ago AND (notes IS NULL OR notes NOT LIKE '[ARCHIVED]%') AND status != 'archived') as new_appointments,
-          (SELECT COUNT(*) FROM medical_records WHERE created_at >= @thirty_days_ago AND (notes IS NULL OR notes NOT LIKE '[ARCHIVED]%') AND record_type NOT LIKE '%_archived') as new_records
+          (SELECT COUNT(*) FROM appointments WHERE created_at >= @thirty_days_ago AND (notes IS NULL OR CAST(notes AS NVARCHAR(MAX)) NOT LIKE '[[]ARCHIVED]%') AND status != 'archived') as new_appointments,
+          (SELECT COUNT(*) FROM medical_records WHERE created_at >= @thirty_days_ago AND (notes IS NULL OR CAST(notes AS NVARCHAR(MAX)) NOT LIKE '[[]ARCHIVED]%') AND record_type NOT LIKE '%_archived') as new_records
         FROM users
         WHERE created_at >= @thirty_days_ago
       `);
