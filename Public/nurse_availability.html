@@ -12,8 +12,8 @@
     <header class="top-header">
         <div class="user-profile" id="userProfile">
             <div class="user-info">
-                <span class="user-name" id="userName">...</span>
-                <span class="user-role" id="userRole">...</span>
+                <span class="user-name" id="userName">Nurse User</span>
+                <span class="user-role">Nurse</span>
             </div>
             <div class="user-avatar">
                 <i class="fas fa-user-nurse"></i>
@@ -42,7 +42,7 @@
     <!-- Sidebar Navigation -->
     <nav class="sidebar" id="sidebar">
         <div class="sidebar-header">
-            <h1>Clinic Management</h1>
+            <h1>CTU Bantayan E-Clinic</h1>
         </div>
         <div class="sidebar-nav">
             <ul>
@@ -52,7 +52,6 @@
                 <li><a href="nurse_availability.html" class="active"><span class="nav-icon"><i class="fas fa-clock"></i></span><span class="nav-text">Availability</span></a></li>
                 <li><a href="nurse_reports.html"><span class="nav-icon"><i class="fas fa-chart-bar"></i></span><span class="nav-text">Reports</span></a></li>
                 <li><a href="nurse_scan.html"><span class="nav-icon"><i class="fas fa-qrcode"></i></span><span class="nav-text">QR Scanner</span></a></li>
-                <li><a href="archive.html"><span class="nav-icon"><i class="fas fa-archive"></i></span><span class="nav-text">Archive</span></a></li>
                 <li><a href="nurse_profile.html"><span class="nav-icon"><i class="fas fa-user"></i></span><span class="nav-text">Profile</span></a></li>
                 <li><a href="#" id="logout"><span class="nav-icon"><i class="fas fa-sign-out-alt"></i></span><span class="nav-text">Logout</span></a></li>
             </ul>
@@ -93,7 +92,7 @@
                                 <input type="time" id="endTime" name="endTime" required>
                             </div>
                             <div class="form-group">
-                                <label for="maxPatients">Max Students</label>
+                                <label for="maxPatients">Max Patients</label>
                                 <input type="number" id="maxPatients" name="maxPatients" min="1" max="50" value="10" required>
                             </div>
                         </div>
@@ -121,10 +120,6 @@
             </div>
         </div>
     </main>
-
-    <footer>
-        <p>&copy; <span id="currentYear"></span> Clinic Management System. All rights reserved.</p>
-    </footer>
 
     <script src="js/common.js"></script>
     <script>
@@ -267,7 +262,7 @@
                 <div class="availability-slot">
                     <div class="slot-date">${formatDate(slot.availability_date)}</div>
                     <div class="slot-time">${slot.start_time} - ${slot.end_time}</div>
-                    <div class="slot-capacity">Max: ${slot.max_patients} students</div>
+                    <div class="slot-capacity">Max: ${slot.max_patients} patients</div>
                     <div class="slot-actions">
                         <button class="btn-small" onclick="editSlot(${slot.id})">Edit</button>
                         <button class="btn-small btn-danger" onclick="deleteSlot(${slot.id})">Delete</button>
