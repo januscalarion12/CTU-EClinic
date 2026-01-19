@@ -690,13 +690,13 @@ function displayRecordsTable(records) {
         const nurse = record.nurse_name || record.nurseName || '';
 
         tr.innerHTML = `
-            <td>${formatDateTime(visitDate) || ''}</td>
-            <td>${nurse || 'N/A'}</td>
-            <td>${record.diagnosis || 'N/A'}</td>
-            <td>${record.treatment || 'N/A'}</td>
-            <td>${medications || 'N/A'}</td>
-            <td>${type || 'N/A'}</td>
-            <td>
+            <td data-label="Date">${formatDateTime(visitDate) || ''}</td>
+            <td data-label="Nurse">${nurse || 'N/A'}</td>
+            <td data-label="Diagnosis">${record.diagnosis || 'N/A'}</td>
+            <td data-label="Treatment">${record.treatment || 'N/A'}</td>
+            <td data-label="Medications">${medications || 'N/A'}</td>
+            <td data-label="Type">${type || 'N/A'}</td>
+            <td data-label="Actions">
                 <button class="btn-small" data-action="view" title="View"><i class="fas fa-eye"></i> View</button>
                 <button class="btn-small" data-action="print" title="Print"><i class="fas fa-print"></i> Print</button>
             </td>

@@ -262,15 +262,15 @@
 
             tableBody.innerHTML = appointments.map(apt => `
                 <tr>
-                    <td>${new Date(apt.appointment_date).toLocaleDateString()}</td>
-                    <td>${new Date(apt.appointment_date).toLocaleTimeString('en-US', {
+                    <td data-label="Date">${new Date(apt.appointment_date).toLocaleDateString()}</td>
+                    <td data-label="Time">${new Date(apt.appointment_date).toLocaleTimeString('en-US', {
                         hour: 'numeric',
                         minute: '2-digit',
                         hour12: true
                     })}</td>
-                    <td>${apt.nurse_name}</td>
-                    <td><span class="status-${apt.status}">${apt.status}</span></td>
-                    <td>
+                    <td data-label="Nurse">${apt.nurse_name}</td>
+                    <td data-label="Status"><span class="status-${apt.status}">${apt.status}</span></td>
+                    <td data-label="QR Code">
                         ${apt.qr_code && apt.status === 'confirmed' ?
                             `<img src="${apt.qr_code}" alt="QR Code" style="width: 60px; height: 60px;" onclick="showQRModal('${apt.qr_code}')">` :
                             apt.status === 'confirmed' ?

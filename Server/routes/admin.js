@@ -385,20 +385,6 @@ router.delete('/users/:id', authorizeRole(['admin']), async (req, res) => {
 
       // 2. Delete role-specific data first
       if (role === 'student') {
-        const studentIdQuery = '(SELECT id FROM students WHERE user_id = @user_id)';
-        
-        await transaction.request()
-          .input('user_id', sql.Int, userId)
-          .query(`DELETE FROM nurse_students WHERE student_id IN ${studentIdQuery}`);
-
-        await transaction.request()
-          .input('user_id', sql.Int, userId)
-          .query(`DELETE FROM appointment_waiting_list WHERE student_id IN ${studentIdQuery}`);
-
-        await transaction.request()
-          .input('user_id', sql.Int, userId)
-          .query(`DELETE FROM reports WHERE student_id IN ${studentIdQuery}`);
-
         await transaction.request()
           .input('user_id', sql.Int, userId)
           .query('DELETE FROM students WHERE user_id = @user_id');
@@ -406,10 +392,6 @@ router.delete('/users/:id', authorizeRole(['admin']), async (req, res) => {
         // For nurses, handle all dependent tables with NO ACTION constraints
         const nurseIdQuery = '(SELECT id FROM nurses WHERE user_id = @user_id)';
         
-        await transaction.request()
-          .input('user_id', sql.Int, userId)
-          .query(`DELETE FROM nurse_students WHERE nurse_id IN ${nurseIdQuery}`);
-
         await transaction.request()
           .input('user_id', sql.Int, userId)
           .query(`DELETE FROM nurse_availability WHERE nurse_id IN ${nurseIdQuery}`);
@@ -435,12 +417,7 @@ router.delete('/users/:id', authorizeRole(['admin']), async (req, res) => {
           .query('DELETE FROM nurses WHERE user_id = @user_id');
       }
 
-      // 3. Delete from general user-related tables
-      await transaction.request()
-        .input('user_id', sql.Int, userId)
-        .query('DELETE FROM notifications WHERE user_id = @user_id');
-
-      // 4. Finally delete from users table
+      // 3. Delete from users table
       await transaction.request()
         .input('id', sql.Int, userId)
         .query('DELETE FROM users WHERE id = @id');
@@ -448,11 +425,10 @@ router.delete('/users/:id', authorizeRole(['admin']), async (req, res) => {
       await transaction.commit();
       res.json({ message: 'User and all related records deleted successfully' });
     } catch (err) {
-      console.error('Transaction error during user deletion:', err);
       await transaction.rollback();
       
-      // Handle foreign key constraint errors specifically (SQL Error 547)
-      if (err.number === 547 || err.code === 'EREQUEST' && err.message.includes('REFERENCE constraint')) {
+      // Handle foreign key constraint errors specifically
+      if (err.number === 547) {
         return res.status(409).json({ 
           message: 'Cannot delete user because they have associated records (appointments, medical history, etc.). Consider deactivating them instead.' 
         });

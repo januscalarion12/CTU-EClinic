@@ -553,13 +553,13 @@
 
                 const row = document.createElement('tr');
                 row.innerHTML = `
-                    <td>${fullName}</td>
-                    <td>${student.role_specific_id || student.ctu_id || 'N/A'}</td>
-                    <td>${student.email}</td>
-                    <td>${student.department || 'N/A'}</td>
-                    <td>${statusBadge}</td>
-                    <td>${new Date(student.created_at).toLocaleDateString()}</td>
-                    <td>
+                    <td data-label="Name">${fullName}</td>
+                    <td data-label="Student ID">${student.role_specific_id || student.ctu_id || 'N/A'}</td>
+                    <td data-label="Email">${student.email}</td>
+                    <td data-label="Program">${student.department || 'N/A'}</td>
+                    <td data-label="Status">${statusBadge}</td>
+                    <td data-label="Last Login">${new Date(student.created_at).toLocaleDateString()}</td>
+                    <td data-label="Actions">
                         <button class="btn-small" onclick="viewUser(${student.id})">View</button>
                         <button class="btn-small" onclick="editUser(${student.id})">Edit</button>
                         <button class="btn-small btn-danger" onclick="deleteUser(${student.id})">Delete</button>
@@ -620,13 +620,13 @@
 
                 const row = document.createElement('tr');
                 row.innerHTML = `
-                    <td>${fullName}</td>
-                    <td>${nurse.role_specific_id || nurse.ctu_id || 'N/A'}</td>
-                    <td>${nurse.email}</td>
-                    <td>${nurse.specialization || 'N/A'}</td>
-                    <td>${statusBadge}</td>
-                    <td>${new Date(nurse.created_at).toLocaleDateString()}</td>
-                    <td>
+                    <td data-label="Name">${fullName}</td>
+                    <td data-label="Employee ID">${nurse.role_specific_id || nurse.ctu_id || 'N/A'}</td>
+                    <td data-label="Email">${nurse.email}</td>
+                    <td data-label="Specialization">${nurse.specialization || 'N/A'}</td>
+                    <td data-label="Status">${statusBadge}</td>
+                    <td data-label="Last Login">${new Date(nurse.created_at).toLocaleDateString()}</td>
+                    <td data-label="Actions">
                         <button class="btn-small" onclick="viewUser(${nurse.id})">View</button>
                         <button class="btn-small" onclick="editUser(${nurse.id})">Edit</button>
                         <button class="btn-small btn-danger" onclick="deleteUser(${nurse.id})">Delete</button>
@@ -687,13 +687,13 @@
 
                 const row = document.createElement('tr');
                 row.innerHTML = `
-                    <td>${fullName}</td>
-                    <td>${admin.ctu_id || 'N/A'}</td>
-                    <td>${admin.email}</td>
-                    <td>Administrator</td>
-                    <td>${statusBadge}</td>
-                    <td>${new Date(admin.created_at).toLocaleDateString()}</td>
-                    <td>
+                    <td data-label="Name">${fullName}</td>
+                    <td data-label="Admin ID">${admin.ctu_id || 'N/A'}</td>
+                    <td data-label="Email">${admin.email}</td>
+                    <td data-label="Role">Administrator</td>
+                    <td data-label="Status">${statusBadge}</td>
+                    <td data-label="Last Login">${new Date(admin.created_at).toLocaleDateString()}</td>
+                    <td data-label="Actions">
                         <button class="btn-small" onclick="viewUser(${admin.id})">View</button>
                         <button class="btn-small" onclick="editUser(${admin.id})">Edit</button>
                         <button class="btn-small btn-danger" onclick="deleteUser(${admin.id})">Delete</button>
@@ -748,11 +748,11 @@
 
                 const row = document.createElement('tr');
                 row.innerHTML = `
-                    <td>${fullName}</td>
-                    <td>${user.email}</td>
-                    <td>${roleDisplay}</td>
-                    <td>${new Date(user.created_at).toLocaleDateString()}</td>
-                    <td>
+                    <td data-label="Name">${fullName}</td>
+                    <td data-label="Email">${user.email}</td>
+                    <td data-label="Role">${roleDisplay}</td>
+                    <td data-label="Registration Date">${new Date(user.created_at).toLocaleDateString()}</td>
+                    <td data-label="Actions">
                         <button class="btn-small btn-success" onclick="approveUser(${user.id})">Approve</button>
                         <button class="btn-small btn-danger" onclick="rejectUser(${user.id})">Reject</button>
                     </td>

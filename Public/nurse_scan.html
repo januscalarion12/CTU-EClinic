@@ -42,7 +42,7 @@
     <!-- Sidebar Navigation -->
     <nav class="sidebar" id="sidebar">
         <div class="sidebar-header">
-            <h1>CTU Bantayan E-Clinic</h1>
+            <h1>CTU Bantayan E-Clinicn</h1>
         </div>
         <div class="sidebar-nav">
             <ul>
@@ -136,18 +136,7 @@
                     <div id="studentInfo" class="student-card">
                         <!-- Student information will be displayed here -->
                     </div>
-
-                    <div class="scan-actions">
-                        <button id="viewRecord" class="btn-primary">
-                            <i class="fas fa-file-medical"></i> View Medical Record
-                        </button>
-                        <button id="createAppointment" class="btn-primary">
-                            <i class="fas fa-calendar-plus"></i> Create Appointment
-                        </button>
-                        <button id="quickCheckIn" class="btn-secondary">
-                            <i class="fas fa-sign-in-alt"></i> Quick Check-in
-                        </button>
-                    </div>
+                    
                 </div>
 
                 <!-- Recent Scans -->
@@ -385,7 +374,7 @@
             const aptDate = appointment.appointmentDate ? new Date(appointment.appointmentDate).toLocaleString() : 'No appointment today';
             const statusClass = appointment.status ? `status-${appointment.status}` : 'status-none';
             const statusText = appointment.status || 'N/A';
-            
+
             studentInfo.innerHTML = `
                 <div class="student-avatar">
                     <i class="fas fa-user-circle"></i>
@@ -396,8 +385,8 @@
                     <p class="appointment-date">Appointment: ${aptDate}</p>
                     <p class="appointment-status">Status: <span class="${statusClass}">${statusText}</span></p>
                     <div class="student-status">
-                        ${checkedIn ? 
-                            '<span class="status-badge success">Check-in Successful</span>' : 
+                        ${checkedIn ?
+                            '<span class="status-badge success">Check-in Successful</span>' :
                             `<span class="status-badge warning">${message || 'Identification only'}</span>`
                         }
                     </div>

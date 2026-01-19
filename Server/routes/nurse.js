@@ -1299,30 +1299,24 @@ router.post('/scan-appointment-qr', authorizeRole(['nurse']), async (req, res) =
       return res.status(400).json({ message: 'Invalid or expired QR code' });
     }
 
-    // Extract appointment ID from QR code
-    let appointmentId = extractAppointmentIdFromQR(qrData);
-    let studentIdFromQR = null;
-
-    if (!appointmentId) {
-      studentIdFromQR = extractStudentIdFromQR(qrData);
-      if (!studentIdFromQR) {
-        return res.status(400).json({ message: 'Invalid QR code format' });
-      }
-    }
-
     const pool = await poolPromise;
-    let appointment = null;
 
-    if (appointmentId) {
-      // Verify appointment belongs to this nurse and is valid for check-in
-      const appointmentRequest = pool.request();
-      const appointmentResult = await appointmentRequest
+    // Try to extract embedded appointment data from QR code first (new format)
+    const embeddedData = extractAppointmentDataFromQR(qrData);
+
+    if (embeddedData) {
+      // Use embedded data from QR code
+      const { appointmentId, studentId, studentName, reason } = embeddedData;
+
+      // Verify the appointment exists and belongs to this nurse
+      const verifyRequest = pool.request();
+      const verifyResult = await verifyRequest
         .input('appointment_id', sql.Int, appointmentId)
         .input('nurse_id', sql.Int, nurseId)
         .query(`
-          SELECT a.id, a.student_id, a.appointment_date, a.status, 
-                 ISNULL(NULLIF(LTRIM(RTRIM(s.name)), ''), 
-                        ISNULL(NULLIF(LTRIM(RTRIM(ISNULL(u.first_name, '') + ' ' + ISNULL(u.last_name, ''))), ''), s.student_id)) as student_name, 
+          SELECT a.id, a.student_id, a.appointment_date, a.status, a.reason,
+                 ISNULL(NULLIF(LTRIM(RTRIM(s.name)), ''),
+                        ISNULL(NULLIF(LTRIM(RTRIM(ISNULL(u.first_name, '') + ' ' + ISNULL(u.last_name, ''))), ''), s.student_id)) as student_name,
                  s.student_id as student_number
           FROM appointments a
           INNER JOIN students s ON a.student_id = s.id
@@ -1330,11 +1324,55 @@ router.post('/scan-appointment-qr', authorizeRole(['nurse']), async (req, res) =
           WHERE a.id = @appointment_id AND a.nurse_id = @nurse_id
         `);
 
-      if (appointmentResult.recordset.length === 0) {
-        return res.status(404).json({ message: 'Appointment not found or not assigned to you' });
+      if (verifyResult.recordset.length === 0) {
+        return res.status(404).json({ message: 'Appointment not found or not authorized' });
       }
-      appointment = appointmentResult.recordset[0];
+
+      const appointment = verifyResult.recordset[0];
+
+      // Check if appointment is in valid status for check-in
+      if (!['confirmed', 'pending'].includes(appointment.status)) {
+        return res.status(400).json({ message: 'Appointment is not in a valid status for check-in' });
+      }
+
+      // Check if appointment is today
+      const todayStr = new Date().toISOString().split('T')[0];
+      const appointmentDateStr = new Date(appointment.appointment_date).toISOString().split('T')[0];
+
+      if (appointmentDateStr !== todayStr) {
+        return res.status(400).json({ message: 'Appointment is not scheduled for today' });
+      }
+
+      // Update appointment with check-in time
+      const checkInRequest = pool.request();
+      await checkInRequest
+        .input('appointment_id', sql.Int, appointmentId)
+        .query(`
+          UPDATE appointments
+          SET check_in_time = GETDATE(), qr_check_in = 1, status = 'confirmed', updated_at = GETDATE()
+          WHERE id = @appointment_id
+        `);
+
+      res.json({
+        message: 'Student checked in successfully',
+        needsCheckIn: true,
+        appointment: {
+          id: appointment.id,
+          studentInternalId: appointment.student_id,
+          studentName: studentName, // Use embedded name from QR
+          studentId: appointment.student_number,
+          appointmentDate: appointment.appointment_date,
+          reason: reason, // Use embedded reason from QR
+          status: 'confirmed'
+        }
+      });
     } else {
+      // Fallback to old QR format (student QR codes)
+      const studentIdFromQR = extractStudentIdFromQR(qrData);
+      if (!studentIdFromQR) {
+        return res.status(400).json({ message: 'Invalid QR code format' });
+      }
+
       // Find today's pending/confirmed appointment for this student
       const studentAppointmentRequest = pool.request();
       const studentAppointmentResult = await studentAppointmentRequest
@@ -1342,29 +1380,32 @@ router.post('/scan-appointment-qr', authorizeRole(['nurse']), async (req, res) =
         .input('nurse_id', sql.Int, nurseId)
         .input('today', sql.Date, new Date().toISOString().split('T')[0])
         .query(`
-          SELECT TOP 1 a.id, a.student_id, a.appointment_date, a.status, 
-                 ISNULL(NULLIF(LTRIM(RTRIM(s.name)), ''), 
-                        ISNULL(NULLIF(LTRIM(RTRIM(ISNULL(u.first_name, '') + ' ' + ISNULL(u.last_name, ''))), ''), s.student_id)) as student_name, 
+          SELECT TOP 1 a.id, a.student_id, a.appointment_date, a.status, a.reason,
+                 ISNULL(NULLIF(LTRIM(RTRIM(s.name)), ''),
+                        ISNULL(NULLIF(LTRIM(RTRIM(ISNULL(u.first_name, '') + ' ' + ISNULL(u.last_name, ''))), ''), s.student_id)) as student_name,
                  s.student_id as student_number
           FROM appointments a
           INNER JOIN students s ON a.student_id = s.id
           LEFT JOIN users u ON s.user_id = u.id
-          WHERE (s.student_id = @student_number_qr OR s.id = TRY_CAST(@student_number_qr AS INT))
+          WHERE (s.student_id = @student_number_qr OR s.id = TRY_CAST(@student_number_qr AS INT) OR u.ctu_id = @student_number_qr)
             AND a.nurse_id = @nurse_id
             AND CAST(a.appointment_date AS DATE) = @today
             AND a.status IN ('pending', 'confirmed')
           ORDER BY a.appointment_date ASC
         `);
 
+      console.log(`Search for today's appointment for student ${studentIdFromQR}. Results:`, studentAppointmentResult.recordset.length);
+
       if (studentAppointmentResult.recordset.length === 0) {
         // Just return student info if no appointment today
+        console.log(`No appointment found for student ${studentIdFromQR} for today`);
         const studentInfoRequest = pool.request();
         const studentInfoResult = await studentInfoRequest
           .input('student_id_qr', sql.NVarChar, studentIdFromQR)
           .query(`
-            SELECT s.id, 
-                   ISNULL(NULLIF(LTRIM(RTRIM(s.name)), ''), 
-                          ISNULL(NULLIF(LTRIM(RTRIM(ISNULL(u.first_name, '') + ' ' + ISNULL(u.last_name, ''))), ''), s.student_id)) as student_name, 
+            SELECT s.id,
+                   ISNULL(NULLIF(LTRIM(RTRIM(s.name)), ''),
+                          ISNULL(NULLIF(LTRIM(RTRIM(ISNULL(u.first_name, '') + ' ' + ISNULL(u.last_name, ''))), ''), s.student_id)) as student_name,
                    s.student_id as student_number
             FROM students s
             JOIN users u ON s.user_id = u.id
@@ -1387,45 +1428,47 @@ router.post('/scan-appointment-qr', authorizeRole(['nurse']), async (req, res) =
           }
         });
       }
-      appointment = studentAppointmentResult.recordset[0];
-      appointmentId = appointment.id;
-    }
 
-    // Check if appointment is in valid status for check-in
-    if (!['confirmed', 'pending'].includes(appointment.status)) {
-      return res.status(400).json({ message: 'Appointment is not in a valid status for check-in' });
-    }
+      const appointment = studentAppointmentResult.recordset[0];
+      const appointmentId = appointment.id;
 
-    // Check if appointment is today
-    const todayStr = new Date().toISOString().split('T')[0];
-    const appointmentDateStr = new Date(appointment.appointment_date).toISOString().split('T')[0];
-
-    if (appointmentDateStr !== todayStr) {
-      return res.status(400).json({ message: 'Appointment is not scheduled for today' });
-    }
-
-    // Update appointment with check-in time
-    const checkInRequest = pool.request();
-    await checkInRequest
-      .input('appointment_id', sql.Int, appointmentId)
-      .query(`
-        UPDATE appointments
-        SET check_in_time = GETDATE(), qr_check_in = 1, status = 'confirmed', updated_at = GETDATE()
-        WHERE id = @appointment_id
-      `);
-
-    res.json({
-      message: 'Student checked in successfully',
-      needsCheckIn: true,
-      appointment: {
-        id: appointment.id,
-        studentInternalId: appointment.student_id,
-        studentName: appointment.student_name,
-        studentId: appointment.student_number,
-        appointmentDate: appointment.appointment_date,
-        status: 'confirmed'
+      // Check if appointment is in valid status for check-in
+      if (!['confirmed', 'pending'].includes(appointment.status)) {
+        return res.status(400).json({ message: 'Appointment is not in a valid status for check-in' });
       }
-    });
+
+      // Check if appointment is today
+      const todayStr = new Date().toISOString().split('T')[0];
+      const appointmentDateStr = new Date(appointment.appointment_date).toISOString().split('T')[0];
+
+      if (appointmentDateStr !== todayStr) {
+        return res.status(400).json({ message: 'Appointment is not scheduled for today' });
+      }
+
+      // Update appointment with check-in time
+      const checkInRequest = pool.request();
+      await checkInRequest
+        .input('appointment_id', sql.Int, appointmentId)
+        .query(`
+          UPDATE appointments
+          SET check_in_time = GETDATE(), qr_check_in = 1, status = 'confirmed', updated_at = GETDATE()
+          WHERE id = @appointment_id
+        `);
+
+      res.json({
+        message: 'Student checked in successfully',
+        needsCheckIn: true,
+        appointment: {
+          id: appointment.id,
+          studentInternalId: appointment.student_id,
+          studentName: appointment.student_name,
+          studentId: appointment.student_number,
+          appointmentDate: appointment.appointment_date,
+          reason: appointment.reason,
+          status: 'confirmed'
+        }
+      });
+    }
 
   } catch (error) {
     console.error('Error processing QR scan:', error);
